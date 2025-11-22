@@ -78,6 +78,7 @@ class ForumTracker:
             except Exception:
                 pass
         return None
+        
    async def _check_url(self, session: aiohttp.ClientSession, url: str, subscribers):
     """
     Проверяет один трек (тему или форум) и уведомляет подписчиков о новых постах/темах.
@@ -165,6 +166,6 @@ class ForumTracker:
                        if last_id is None or tid != last_id]
             for tid, full, title in reversed(to_send):
                 self.vk.send(peer_id, f"🆕 Новая тема:\n{title}\n{full}")
-                update_last(peer_id, url, tid
+                update_last(peer_id, url, tid)
         else:
             return
