@@ -5,3 +5,5 @@ XF_TFA_TRUST = "OgrvZwIYDO5aXclUizUeE6vYp-C6xStx"
 XF_SESSION = "VXmtlbBMWQ8TLyOR6ZNgtFhMZD7nMV5N"
 
 FORUM_BASE = "https://forum.matrp.ru"
+
+POLL_INTERVAL_SEC = 10
