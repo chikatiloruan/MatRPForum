@@ -12,17 +12,19 @@ import asyncio
 class VKBot:
     def __init__(self):
         init_db()
-        token = os.getenv("VK_TOKEN")
+
+        # 🔥 используем VK_TOKEN напрямую
+        token = VK_TOKEN  
         if not token:
-            raise RuntimeError("VK_TOKEN not set")
+            raise RuntimeError("VK_TOKEN not set (config.py)")
+
         self.vk_session = vk_api.VkApi(token=token)
         self.api = self.vk_session.get_api()
-        # group id:
+
         gid = self.api.groups.getById()[0]['id']
         self.group_id = gid
         self.longpoll = VkBotLongPoll(self.vk_session, gid)
         self.handler = CommandHandler(self)
-        # hook for forum_tracker to trigger immediate check
         self._trigger_check = None
 
     async def start(self):
