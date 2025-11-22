@@ -1,1 +1,8 @@
+vk_api
+requests
+beautifulsoup4
+aiohttp
+aiodns
+cchardet
+python-dotenv
 
