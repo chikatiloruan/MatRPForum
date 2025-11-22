@@ -177,3 +177,33 @@ def is_banned(peer_id: int, user_id: int) -> bool:
     r = cur.fetchone()
     conn.close()
     return bool(r)
+
+# ---------------- STATS ----------------
+def stat_inc(name: str):
+    """Увеличить счетчик статистики на 1"""
+    with _lock:
+        conn = _conn()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS stats (
+                name TEXT PRIMARY KEY,
+                count INTEGER DEFAULT 0
+            )
+        """)
+        cur.execute("""
+            INSERT INTO stats (name, count)
+            VALUES (?, 1)
+            ON CONFLICT(name) DO UPDATE SET count = count + 1
+        """, (name,))
+        conn.commit()
+        conn.close()
+
+def stat_get(name: str) -> int:
+    """Получить текущее значение счетчика статистики"""
+    conn = _conn()
+    cur = conn.cursor()
+    cur.execute("SELECT count FROM stats WHERE name=?", (name,))
+    r = cur.fetchone()
+    conn.close()
+    return r[0] if r else 0
+
