@@ -12,10 +12,8 @@ POLL_INTERVAL = 10  # можно менять через переменную в
 class ForumTracker:
     def __init__(self, vkbot):
         self.vk = vkbot
-        # trigger для команды /check
         self.vk.set_trigger(lambda: asyncio.get_event_loop().create_task(self.check_all()))
         
-        # cookies из config.py
         self.cookies = [
             {"xf_user": XF_USER, "xf_session": XF_SESSION, "xf_tfa_trust": XF_TFA_TRUST},
             {"xf_user": XF_USER, "xf_session": XF_SESSION, "xf_tfa_trust": XF_TFA_TRUST},
@@ -87,11 +85,10 @@ class ForumTracker:
         subscribers: list of (peer_id, type, last_id)
         """
         url = normalize_url(url)
-        typ = "thread" if "/threads/" in url else "forum" if "/forums/" in url else "unknown"
+        typ = "threads" if "/threads/" in url else "forums" if "/forums/" in url else "unknown"
         if typ == "unknown":
             return
 
-        # --- GET с куками ---
         html = await self._fetch_with_all_cookies(session, url)
         if not html:
             print("Failed to fetch:", url)
@@ -99,8 +96,7 @@ class ForumTracker:
 
         soup = BeautifulSoup(html, "html.parser")
 
-        if typ == "thread":
-            # --- парсим посты ---
+        if typ == "threads":
             posts = soup.select("article.message.message--post")
             if not posts:
                 return
@@ -125,7 +121,7 @@ class ForumTracker:
                     })
             if not parsed:
                 return
-            newest = parsed[-1]  # последний пост
+            newest = parsed[-1]
             for peer_id, _, last_id in subscribers:
                 if last_id is None or last_id != newest["id"]:
                     excerpt = newest["text"][:1500]
@@ -135,8 +131,7 @@ class ForumTracker:
                     self.vk.send(peer_id, msg)
                     update_last(peer_id, url, newest["id"])
 
-        elif typ == "forum":
-            # --- парсим темы ---
+        elif typ == "forums":
             threads = []
             nodes = soup.select("div.structItem.structItem--thread a.structItem-title")
             for a in nodes:
@@ -147,10 +142,8 @@ class ForumTracker:
                 tid = extract_thread_id(full_url)
                 if tid:
                     threads.append((tid, full_url, a.get_text(strip=True)))
-            # dedupe
             seen = {tid: (full, title) for tid, full, title in threads}
             for peer_id, _, last_id in subscribers:
-                # отправляем только новые темы
                 to_send = [(tid, full, title) for tid, (full, title) in seen.items()
                            if last_id is None or tid != last_id]
                 for tid, full, title in reversed(to_send):
