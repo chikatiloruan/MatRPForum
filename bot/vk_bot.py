@@ -1,12 +1,20 @@
 # bot/vk_bot.py
 import os
 import threading
+import time
+import sys
+import traceback
+from typing import Callable
+
 import vk_api
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
+
 from .command_handler import CommandHandler
 from .storage import init_db
-
 from config import VK_TOKEN
+
+# size for splitting messages (VK allows ≈ 4096; use 3500 to be safe)
+VK_MSG_LIMIT = 3500
 
 class VKBot:
     def __init__(self):
@@ -16,32 +24,50 @@ class VKBot:
             raise RuntimeError("VK_TOKEN not set in config.py")
         self.vk_session = vk_api.VkApi(token=token)
         self.api = self.vk_session.get_api()
-        gid = self.api.groups.getById()[0]['id']
+        gid = self.api.groups.getById()[0]["id"]
         self.group_id = gid
         self.longpoll = VkBotLongPoll(self.vk_session, gid)
         self.handler = CommandHandler(self)
-        self._trigger_check = None
+        self._trigger_check_callback = None
+        self._running = False
+        self._lp_thread = None
 
     def start(self):
-        t = threading.Thread(target=self._longpoll_loop, daemon=True)
-        t.start()
+        if self._running:
+            return
+        self._running = True
+        self._lp_thread = threading.Thread(target=self._longpoll_loop, daemon=True)
+        self._lp_thread.start()
+        print("VK longpoll loop started")
+
+    def stop(self):
+        self._running = False
+        # longpoll listener will exit at next exception/stop
+        print("VKBot stopped")
 
     def _longpoll_loop(self):
-        print("VK longpoll started")
+        print("VKBot longpoll listening...")
         for event in self.longpoll.listen():
+            if not self._running:
+                break
             try:
                 if event.type == VkBotEventType.MESSAGE_NEW:
                     msg = event.object.message
                     text = msg.get("text", "") or ""
                     peer = msg["peer_id"]
-                    from_id = msg.get("from_id", 0)
-                    if text.startswith("/"):
+                    from_id = msg.get("from_id") or 0
+                    # handle commands only when message starts with /
+                    if text and text.startswith("/"):
                         try:
                             self.handler.handle(text, peer, from_id)
                         except Exception as e:
-                            print("Command handler error:", e)
+                            print("Command handler exception:", e)
+                            traceback.print_exc()
             except Exception as e:
                 print("Longpoll error:", e)
+                traceback.print_exc()
+                # slight delay to avoid busy-looping on persistent errors
+                time.sleep(1)
 
     def send(self, peer_id: int, text: str):
         try:
@@ -49,14 +75,39 @@ class VKBot:
         except Exception as e:
             print("VK send error:", e)
 
-    def set_trigger(self, fn):
-        self._trigger_check = fn
+    def send_big(self, peer_id: int, text: str):
+        if not text:
+            return
+        # split by paragraphs but cap size
+        parts = []
+        cur = ""
+        for paragraph in text.split("\n\n"):
+            if len(cur) + len(paragraph) + 2 <= VK_MSG_LIMIT:
+                cur += (paragraph + "\n\n")
+            else:
+                if cur:
+                    parts.append(cur.strip())
+                if len(paragraph) > VK_MSG_LIMIT:
+                    # split paragraph
+                    for i in range(0, len(paragraph), VK_MSG_LIMIT):
+                        parts.append(paragraph[i:i+VK_MSG_LIMIT])
+                    cur = ""
+                else:
+                    cur = paragraph + "\n\n"
+        if cur:
+            parts.append(cur.strip())
+        for p in parts:
+            self.send(peer_id, p)
 
-    def trigger_check(self):
-        if self._trigger_check:
+    def set_trigger(self, fn: Callable):
+        self._trigger_check_callback = fn
+
+    def trigger_check(self) -> bool:
+        if self._trigger_check_callback:
             try:
-                self._trigger_check()
+                self._trigger_check_callback()
                 return True
-            except Exception:
+            except Exception as e:
+                print("trigger_check error:", e)
                 return False
         return False
