@@ -4,7 +4,7 @@ import time
 import threading
 from bot.vk_bot import VKBot
 from bot.forum_tracker import ForumTracker
-from config import VK_TOKEN, FA_COOKIE
+from config import VK_TOKEN, XF_USER, XF_TFA_TRUST, XF_SESSION
 from colorama import Fore, Style, init
 
 init(autoreset=True)
@@ -35,7 +35,9 @@ def banner():
 def check_config():
     missing = []
     if not VK_TOKEN: missing.append("VK_TOKEN")
-    if not FA_COOKIE: missing.append("FA_COOKIE")
+    if not XF_USER: missing.append("XF_USER")
+    if not XF_TFA_TRUST: missing.append("XF_TFA_TRUST")
+    if not XF_SESSION: missing.append("XF_SESSION")
 
     if missing:
         print(Fore.RED + "❌ В config.py отсутствуют параметры:" + Style.RESET_ALL)
@@ -51,10 +53,11 @@ def run():
     check_config()
 
     print(Fore.CYAN + "[INIT] Инициализация VK бота..." + Style.RESET_ALL)
-    vk = VKBot(VK_TOKEN)
+    vk = VKBot()  # VKBot берёт токен сам
 
     print(Fore.CYAN + "[INIT] Инициализация форум-трекера..." + Style.RESET_ALL)
-    tracker = ForumTracker(FA_COOKIE, vk)
+    # передаём все три cookie
+    tracker = ForumTracker(XF_USER, XF_TFA_TRUST, XF_SESSION, vk)
 
     print(Fore.GREEN + "\n✔ Всё готово! Бот работает.\n" + Style.RESET_ALL)
 
