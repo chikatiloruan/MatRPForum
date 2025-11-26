@@ -22,13 +22,22 @@ class CommandHandler:
         # create a local tracker helper to use fetching/posting functions
         self.tracker = ForumTracker(vk)
 
-    def handle(self, text: str, peer_id: int, user_id: int):
-        try:
-            txt = (text or "").strip()
-            if not txt:
-                return
-            parts = txt.split(maxsplit=2)  # allow /otvet url text (split into 3 parts)
-            cmd = parts[0].lower()
+def handle(self, text: str, peer_id: int, user_id: int):
+    try:
+        txt = (text or "").strip()
+        if not txt:
+            return
+
+        # ——— фильтр от дубликатов ———
+        last = getattr(self, "_last_msg", None)
+        cur = f"{peer_id}:{user_id}:{txt}"
+        if last == cur:
+            return
+        self._last_msg = cur
+        # ———————————————
+
+        parts = txt.split(maxsplit=2)
+        cmd = parts[0].lower()
 
             # auto-kick if banned
             try:
