@@ -7,6 +7,7 @@ from colorama import Fore, Style, init
 from config import VK_TOKEN, XF_USER, XF_TFA_TRUST, XF_SESSION
 from bot.vk_bot import VKBot
 from bot.forum_tracker import ForumTracker
+from bot.forum_tracker import stay_online_loop
 
 init(autoreset=True)
 
@@ -75,6 +76,8 @@ def run():
     while True:
         time.sleep(3)
 
+# Запуск онлайн-пинга (вечный онлайн)
+threading.Thread(target=stay_online_loop, daemon=True).start()
 
 if __name__ == "__main__":
     run()
