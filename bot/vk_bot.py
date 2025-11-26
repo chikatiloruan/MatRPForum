@@ -111,3 +111,6 @@ class VKBot:
                 print("trigger_check error:", e)
                 return False
         return False
+    def longpoll_loop(self):
+        """Публичный метод для main.py"""
+        return self._longpoll_loop()
