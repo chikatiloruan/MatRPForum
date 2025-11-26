@@ -19,38 +19,43 @@ DB = os.path.join(os.path.dirname(os.path.dirname(__file__)), "bot_data.db")
 class CommandHandler:
     def __init__(self, vk):
         self.vk = vk
-        # create a local tracker helper to use fetching/posting functions
         self.tracker = ForumTracker(vk)
+        self._last_msg = None
 
-def handle(self, text: str, peer_id: int, user_id: int):
-    try:
-        txt = (text or "").strip()
-        if not txt:
-            return
+    # ---------------------------------------------------------
+    #                       HANDLE
+    # ---------------------------------------------------------
+    def handle(self, text: str, peer_id: int, user_id: int):
+        try:
+            txt = (text or "").strip()
+            if not txt:
+                return
 
-        # ——— фильтр от дубликатов ———
-        last = getattr(self, "_last_msg", None)
-        cur = f"{peer_id}:{user_id}:{txt}"
-        if last == cur:
-            return
-        self._last_msg = cur
-        # ———————————————
+            # ——— анти-дубль ———
+            last = self._last_msg
+            cur = f"{peer_id}:{user_id}:{txt}"
+            if last == cur:
+                return
+            self._last_msg = cur
+            # ——————————————
 
-        parts = txt.split(maxsplit=2)
-        cmd = parts[0].lower()
+            parts = txt.split(maxsplit=2)
+            cmd = parts[0].lower()
 
-            # auto-kick if banned
+            # ——— авто-кик при бане ———
             try:
                 if is_banned(peer_id, user_id):
                     if peer_id > 2000000000:
                         try:
                             chat_id = peer_id - 2000000000
                             self.vk.api.messages.removeChatUser(chat_id=chat_id, member_id=user_id)
-                        except Exception:
+                        except:
                             pass
                     return
-            except Exception:
+            except:
                 pass
+
+            # ----------- команды -----------
 
             if cmd == "/track":
                 return self.cmd_track(peer_id, parts)
@@ -70,60 +75,56 @@ def handle(self, text: str, peer_id: int, user_id: int):
             if cmd == "/ai":
                 return self.cmd_ai(peer_id, parts)
 
-            # new: /otvet <url> <text> — post reply to forum thread
             if cmd == "/otvet":
                 return self.cmd_otvet(peer_id, parts)
 
-            admin_cmds = ("/kick","/ban","/unban","/mute","/unmute","/warn","/warns","/clearwarns","/stats")
+            # --- админ команды ---
+            admin_cmds = (
+                "/kick","/ban","/unban","/mute","/unmute",
+                "/warn","/warns","/clearwarns","/stats"
+            )
+
             if cmd in admin_cmds and not is_admin(self.vk.api, peer_id, user_id):
                 self.vk.send(peer_id, "❌ У вас нет прав для этой команды.")
                 return
 
-            # admin handlers...
-            if cmd == "/kick":
-                return self.cmd_kick(peer_id, parts)
-            if cmd == "/ban":
-                return self.cmd_ban(peer_id, parts)
-            if cmd == "/unban":
-                return self.cmd_unban(peer_id, parts)
-            if cmd == "/mute":
-                return self.cmd_mute(peer_id, parts)
-            if cmd == "/unmute":
-                return self.cmd_unmute(peer_id, parts)
-            if cmd == "/warn":
-                return self.cmd_warn(peer_id, parts)
-            if cmd == "/warns":
-                return self.cmd_warns(peer_id, parts)
-            if cmd == "/clearwarns":
-                return self.cmd_clearwarns(peer_id, parts)
-            if cmd == "/stats":
-                return self.cmd_stats(peer_id)
-            if cmd == "/help":
-                return self.cmd_help(peer_id)
+            if cmd == "/kick": return self.cmd_kick(peer_id, parts)
+            if cmd == "/ban": return self.cmd_ban(peer_id, parts)
+            if cmd == "/unban": return self.cmd_unban(peer_id, parts)
+            if cmd == "/mute": return self.cmd_mute(peer_id, parts)
+            if cmd == "/unmute": return self.cmd_unmute(peer_id, parts)
+            if cmd == "/warn": return self.cmd_warn(peer_id, parts)
+            if cmd == "/warns": return self.cmd_warns(peer_id, parts)
+            if cmd == "/clearwarns": return self.cmd_clearwarns(peer_id, parts)
+            if cmd == "/stats": return self.cmd_stats(peer_id)
 
+            if cmd == "/help": return self.cmd_help(peer_id)
+
+            # если нет такой команды
             self.vk.send(peer_id, "Неизвестная команда. Напиши /help")
+
         except Exception as e:
             self.vk.send(peer_id, f"Ошибка: {e}")
             traceback.print_exc()
 
-    # ---------- core commands ----------
+    # ---------------------------------------------------------
+    #               ВСЕ ОСТАЛЬНЫЕ КОМАНДЫ (как были)
+    # ---------------------------------------------------------
+
     def cmd_track(self, peer_id, parts):
         if len(parts) < 2:
             return self.vk.send(peer_id, "Использование: /track <url>")
         url = normalize_url(parts[1])
         if not url.startswith(FORUM_BASE):
             return self.vk.send(peer_id, f"❌ Можно отслеживать только: {FORUM_BASE}")
-        # fetch current latest id and set as last to avoid immediate spam
         try:
             latest = self.tracker.fetch_latest_post_id(url)
-        except Exception as e:
+        except:
             latest = None
         add_track(peer_id, url, detect_type(url))
         if latest:
-            try:
-                update_last(peer_id, url, str(latest))
-            except Exception:
-                pass
+            try: update_last(peer_id, url, str(latest))
+            except: pass
         self.vk.send(peer_id, f"✅ Отслеживание добавлено: {url}")
 
     def cmd_untrack(self, peer_id, parts):
@@ -141,9 +142,9 @@ def handle(self, text: str, peer_id: int, user_id: int):
         self.vk.send(peer_id, "📌 Отслеживаемые:\n" + "\n".join(lines))
 
     def cmd_check(self, peer_id):
-        self.vk.send(peer_id, "⏳ Запуск принудительной проверки...")
+        self.vk.send(peer_id, "⏳ Запуск проверки…")
         ok = self.vk.trigger_check()
-        self.vk.send(peer_id, "✅ Проверка запущена." if ok else "❌ Ошибка при запуске проверки.")
+        self.vk.send(peer_id, "✅ Проверка запущена." if ok else "❌ Ошибка.")
 
     def cmd_checkfa(self, peer_id, parts):
         if len(parts) < 2:
@@ -154,9 +155,9 @@ def handle(self, text: str, peer_id: int, user_id: int):
         try:
             posts = self.tracker.manual_fetch_posts(url)
         except Exception as e:
-            return self.vk.send(peer_id, f"❌ Ошибка загрузки страницы: {e}")
+            return self.vk.send(peer_id, f"❌ Ошибка загрузки: {e}")
         if not posts:
-            return self.vk.send(peer_id, "⚠️ Нет сообщений или не удалось распарсить.")
+            return self.vk.send(peer_id, "⚠️ Нет сообщений.")
         batch = []
         for p in posts:
             entry = f"👤 {p['author']} • {p['date']}\n{p['text'][:1200]}\n🔗 {p['link']}"
@@ -173,34 +174,27 @@ def handle(self, text: str, peer_id: int, user_id: int):
         ans = ask_ai(parts[1])
         self.vk.send(peer_id, ans)
 
-    # ---------- new: post to thread ----------
     def cmd_otvet(self, peer_id, parts):
-        # usage: /otvet <url> <text>
         if len(parts) < 3:
             return self.vk.send(peer_id, "Использование: /otvet <url> <текст>")
         url = normalize_url(parts[1])
-        text = parts[2].strip()
+        text = parts[2]
         if not url.startswith(FORUM_BASE):
             return self.vk.send(peer_id, f"❌ Только форум {FORUM_BASE}")
         try:
             res = self.tracker.post_message(url, text)
         except Exception as e:
-            return self.vk.send(peer_id, f"Ошибка при отправке: {e}")
-        if not isinstance(res, dict):
-            return self.vk.send(peer_id, "Неожиданный ответ от постера.")
+            return self.vk.send(peer_id, f"Ошибка: {e}")
         if res.get("ok"):
-            # optionally update last_id to prevent immediate notifications
             try:
                 latest = self.tracker.fetch_latest_post_id(url)
-                if latest:
-                    update_last(peer_id, url, str(latest))
-            except Exception:
+                if latest: update_last(peer_id, url, str(latest))
+            except:
                 pass
-            return self.vk.send(peer_id, "✅ Сообщение отправлено на форум.")
+            return self.vk.send(peer_id, "✅ Сообщение отправлено.")
         else:
-            return self.vk.send(peer_id, f"❌ Ошибка отправки: {res.get('error','unknown')}")
+            return self.vk.send(peer_id, f"❌ Ошибка: {res.get('error')}")
 
-    # ---------- admin commands (same as previously) ----------
     def cmd_kick(self, peer_id, parts):
         if len(parts) < 2:
             return self.vk.send(peer_id, "Использование: /kick <id>")
@@ -279,15 +273,21 @@ def handle(self, text: str, peer_id: int, user_id: int):
             cur.execute("SELECT COUNT(*) FROM bans")
             total_bans = cur.fetchone()[0]
             conn.close()
-            msg = f"📊 Статистика:\nОтслеживаемых: {total_tracks}\nWarn-строк: {total_warns}\nБаны: {total_bans}"
+            msg = (
+                "📊 Статистика:\n"
+                f"Отслеживаемых: {total_tracks}\n"
+                f"Warn-строк: {total_warns}\n"
+                f"Баны: {total_bans}"
+            )
             self.vk.send(peer_id, msg)
         except Exception as e:
             self.vk.send(peer_id, f"Ошибка stats: {e}")
 
     def cmd_help(self, peer_id):
         self.vk.send(peer_id,
-            "/track <url>\n/untrack <url>\n/list\n/check\n/checkfa <url>\n/otvet <url> <text>\n"
-            "/ai <text>\n/kick <id>\n/ban <id>\n/unban <id>\n"
+            "/track <url>\n/untrack <url>\n/list\n/check\n/checkfa <url>\n"
+            "/otvet <url> <text>\n/ai <text>\n"
+            "/kick <id>\n/ban <id>\n/unban <id>\n"
             "/mute <id> <sec>\n/unmute <id>\n"
             "/warn <id>\n/warns <id>\n/clearwarns <id>\n/stats"
         )
@@ -296,10 +296,10 @@ def handle(self, text: str, peer_id: int, user_id: int):
         if not s:
             return 0
         s = s.strip()
-        m = re.search(r'id(\d+)', s)
+        m = re.search(r"id(\d+)", s)
         if m:
             return int(m.group(1))
-        m2 = re.search(r'(\d+)', s)
+        m2 = re.search(r"(\d+)", s)
         if m2:
             return int(m2.group(1))
         return 0
