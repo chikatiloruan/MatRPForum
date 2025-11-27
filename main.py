@@ -69,8 +69,8 @@ def run():
     print(Fore.GREEN + "\n✔ Всё готово! Бот работает.\n" + Style.RESET_ALL)
 
     # --- Запуск потоков как раньше ---
-    threading.Thread(target=vk.longpoll_loop, daemon=True).start()
-    threading.Thread(target=tracker.loop, daemon=True).start()
+    vk.start()  # ← запускает longpoll правильно
+threading.Thread(target=tracker.loop, daemon=True).start()
 
     # --- Держим процесс ---
     while True:
