@@ -328,39 +328,60 @@ class ForumTracker:
         return None
 
     # ---------- posting (reply) ----------
-    def post_message(self, url: str, message: str) -> Dict:
-        """
-        Попытка отправить reply в теме:
-         - найти форму ответа
-         - собрать hidden inputs и токены
-         - попробовать несколько имён поля textarea (message, message_html, ...)
-         - после отправки проверить явное появление текста на странице (короткая валидация)
-        Возвращает dict: {"ok": True/False, "error": "...", "response": text}
-        """
+        def post_message(self, url: str, message: str) -> Dict:
         url = normalize_url(url)
         if not url.startswith(FORUM_BASE):
             return {"ok": False, "error": "URL not on forum base"}
+
         html = fetch_html(url)
         if not html:
             return {"ok": False, "error": "Cannot fetch page (cookies?)"}
+
         soup = BeautifulSoup(html, "html.parser")
 
-        # try to find reply form
-        form = None
-        possible = soup.select("form.message-form, form#QuickReplyForm, form[action*='post'], form[action*='reply'], form[action*='posts']")
-        if possible:
-            form = possible[0]
-        else:
-            forms = soup.select("form")
-            for f in forms:
-                if f.select_one("textarea"):
-                    form = f
-                    break
+        # --- MatRP XenForo 2 Froala form ---
+        form = soup.select_one("form.message-editor")
         if not form:
-            return {"ok": False, "error": "Reply form not found on page"}
+            return {"ok": False, "error": "Reply form (message-editor) not found"}
 
+        # Формируем action
         action = form.get("action") or url
-        action = action if action.startswith("http") else urljoin((FORUM_BASE.rstrip("/") + "/"), action.lstrip("/"))
+        action = action if action.startswith("http") else urljoin(
+            FORUM_BASE.rstrip("/") + "/", action.lstrip("/")
+        )
+
+        # Собираем все input
+        payload = {}
+        for inp in form.select("input"):
+            name = inp.get("name")
+            if name:
+                payload[name] = inp.get("value", "")
+
+        # Поле для сообщения — Froala использует message_html
+        if "message_html" in payload:
+            payload["message_html"] = message
+        else:
+            payload["message_html"] = message
+
+        # Токен
+        if "_xfToken" not in payload:
+            tok = form.select_one("input[name=_xfToken]")
+            if tok:
+                payload["_xfToken"] = tok.get("value", "")
+
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Referer": url,
+            "X-Requested-With": "XMLHttpRequest",
+        }
+
+        # Отправка формы
+        resp = requests.post(action, data=payload, headers=headers, cookies=build_cookies())
+
+        if resp.status_code in (200, 302):
+            return {"ok": True, "response": "Posted"}
+
+        return {"ok": False, "error": f"HTTP {resp.status_code}: {resp.text[:300]}"}
 
         def build_payload(candidate_tname):
             payload = {}
