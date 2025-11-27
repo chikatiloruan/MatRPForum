@@ -176,7 +176,7 @@ class ForumTracker:
             if v:
                 # requests' session.cookies accepts cookiejar or simple set via dict on request;
                 # we'll include cookies manually on each request if needed; but adding to session as cookiejar:
-                self.session.cookies.set(k, v, domain=None)
+            self.session.cookies.set(k, v, domain="")
 
         # поддержка двух сигнатур
         if len(args) == 1:
