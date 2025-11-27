@@ -12,7 +12,7 @@ from bot.forum_tracker import stay_online_loop
 init(autoreset=True)
 
 # ============================================================
-# БАННЕР (стиль НОВЫЙ)
+# БАННЕР
 # ============================================================
 def banner():
     print(Fore.CYAN + r"""
@@ -34,7 +34,7 @@ def banner():
 
 
 # ============================================================
-# ПРОВЕРКА КОНФИГА (как в СТАРОЙ версии)
+# ПРОВЕРКА CONFIG
 # ============================================================
 def check_config():
     missing = []
@@ -54,30 +54,31 @@ def check_config():
 
 
 # ============================================================
-# ОСНОВНОЙ ЗАПУСК (логика старая)
+# ОСНОВНОЙ ЗАПУСК
 # ============================================================
 def run():
     banner()
     check_config()
 
     print(Fore.CYAN + "[INIT] Инициализация VK бота..." + Style.RESET_ALL)
-    vk = VKBot()  # ← СТАРАЯ ЛОГИКА: без аргументов
+    vk = VKBot()
 
     print(Fore.CYAN + "[INIT] Инициализация форум-трекера..." + Style.RESET_ALL)
-    tracker = ForumTracker(XF_USER, XF_TFA_TRUST, XF_SESSION, vk)  # ← СТАРАЯ ЛОГИКА
+    tracker = ForumTracker(XF_USER, XF_TFA_TRUST, XF_SESSION, vk)
 
     print(Fore.GREEN + "\n✔ Всё готово! Бот работает.\n" + Style.RESET_ALL)
 
-    # --- Запуск потоков как раньше ---
-    vk.start()  # ← запускает longpoll правильно
-threading.Thread(target=tracker.loop, daemon=True).start()
+    # --- Запуск потоков ---
+    vk.start()          # запускаем VK longpoll
+    tracker.start()     # ВАЖНО! именно start(), а не loop()
 
-    # --- Держим процесс ---
+    # вечный онлайн форума
+    threading.Thread(target=stay_online_loop, daemon=True).start()
+
+    # держим процесс
     while True:
         time.sleep(3)
 
-# Запуск онлайн-пинга (вечный онлайн)
-threading.Thread(target=stay_online_loop, daemon=True).start()
 
 if __name__ == "__main__":
     run()
