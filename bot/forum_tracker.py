@@ -293,6 +293,16 @@ class ForumTracker:
             return
 
         typ = detect_type(url)
+    # ===================================================================
+    # KEEPALIVE — пинг форума раз в N секунд (держит сессию активной)
+    # ===================================================================
+    def _keepalive_loop(self):
+        while self._keepalive_running:
+            try:
+                fetch_html(FORUM_BASE)
+            except Exception as e:
+                warn(f"keepalive error: {e}")
+            time.sleep(max(60, self.interval * 3))
 
         # ---------------------------------------------------------------
         #     THREAD
