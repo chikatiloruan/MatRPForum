@@ -9,7 +9,7 @@ from .storage import (
 from .deepseek_ai import ask_ai
 from .permissions import is_admin
 from .utils import normalize_url, detect_type
-from .forum_tracker import ForumTracker
+from .forum_tracker import ForumTracker, parse_forum_topics
 import sqlite3
 import os
 from config import FORUM_BASE
@@ -79,12 +79,17 @@ class CommandHandler:
             if cmd == "/otvet":
                 return self.cmd_otvet(peer_id, parts)
 
+            # NEW: tlist / tlistall
+            if cmd == "/tlist":
+                return self.cmd_tlist(peer_id, parts)
 
-            # 🔥🔥🔥 НОВАЯ КОМАНДА DEBUG — ДОБАВЛЕНО
+            if cmd == "/tlistall":
+                return self.cmd_tlistall(peer_id, parts)
+
+            # DEBUG
             if cmd == "/debug_otvet":
                 return self.cmd_debug_otvet(peer_id, parts)
-        
-            
+
             if cmd == "/checkcookies":
                 return self.cmd_checkcookies(peer_id)
 
@@ -107,10 +112,8 @@ class CommandHandler:
             if cmd == "/warns": return self.cmd_warns(peer_id, parts)
             if cmd == "/clearwarns": return self.cmd_clearwarns(peer_id, parts)
             if cmd == "/stats": return self.cmd_stats(peer_id)
-
             if cmd == "/help": return self.cmd_help(peer_id)
 
-            # если нет такой команды
             self.vk.send(peer_id, "Неизвестная команда. Напиши /help")
 
         except Exception as e:
@@ -118,16 +121,14 @@ class CommandHandler:
             traceback.print_exc()
 
     # ---------------------------------------------------------
-    # 🔍 НОВАЯ ФУНКЦИЯ DEBUG
+    # DEBUG
     # ---------------------------------------------------------
     def cmd_debug_otvet(self, peer_id, parts):
         if len(parts) < 2:
             return self.vk.send(peer_id, "Использование: /debug_otvet <url>")
-
         url = normalize_url(parts[1])
         try:
             res = self.tracker.debug_reply_form(url)
-            # VK ограничение 4000 символов
             if len(res) < 3900:
                 self.vk.send(peer_id, res)
             else:
@@ -137,10 +138,8 @@ class CommandHandler:
         except Exception as e:
             return self.vk.send(peer_id, f"❌ Ошибка debug: {e}")
 
-       
     def cmd_checkcookies(self, peer_id):
         r = self.tracker.check_cookies()
-
         msg = (
             "🔍 Проверка cookies\n"
             f"Статус: {r.get('status')}\n"
@@ -148,28 +147,33 @@ class CommandHandler:
             f"Cookies:\n{r.get('cookies_sent')}\n\n"
             f"HTML:\n{r.get('html_sample')}"
         )
-
         self.vk.send(peer_id, msg)
 
-
     # ---------------------------------------------------------
-    #               ВСЕ ОСТАЛЬНЫЕ КОМАНДЫ (как были)
+    # TRACK
     # ---------------------------------------------------------
-
     def cmd_track(self, peer_id, parts):
         if len(parts) < 2:
             return self.vk.send(peer_id, "Использование: /track <url>")
+
         url = normalize_url(parts[1])
+
         if not url.startswith(FORUM_BASE):
             return self.vk.send(peer_id, f"❌ Можно отслеживать только: {FORUM_BASE}")
+
         try:
             latest = self.tracker.fetch_latest_post_id(url)
         except:
             latest = None
+
         add_track(peer_id, url, detect_type(url))
+
         if latest:
-            try: update_last(peer_id, url, str(latest))
-            except: pass
+            try:
+                update_last(peer_id, url, str(latest))
+            except:
+                pass
+
         self.vk.send(peer_id, f"✅ Отслеживание добавлено: {url}")
 
     def cmd_untrack(self, peer_id, parts):
@@ -191,21 +195,32 @@ class CommandHandler:
         ok = self.vk.trigger_check()
         self.vk.send(peer_id, "✅ Проверка запущена." if ok else "❌ Ошибка.")
 
+    # ---------------------------------------------------------
+    # /checkfa
+    # ---------------------------------------------------------
     def cmd_checkfa(self, peer_id, parts):
         if len(parts) < 2:
             return self.vk.send(peer_id, "Использование: /checkfa <url>")
         url = normalize_url(parts[1])
+
         if not url.startswith(FORUM_BASE):
             return self.vk.send(peer_id, f"❌ Только ссылки {FORUM_BASE}")
+
         try:
             posts = self.tracker.manual_fetch_posts(url)
         except Exception as e:
             return self.vk.send(peer_id, f"❌ Ошибка загрузки: {e}")
+
         if not posts:
             return self.vk.send(peer_id, "⚠️ Нет сообщений.")
+
         batch = []
         for p in posts:
-            entry = f"👤 {p['author']} • {p['date']}\n{p['text'][:1200]}\n🔗 {p['link']}"
+            entry = (
+                f"👤 {p['author']} • {p['date']}\n"
+                f"{p['text'][:1200]}\n"
+                f"🔗 {p['link']}"
+            )
             batch.append(entry)
             if len(batch) >= 3:
                 self.vk.send_big(peer_id, "\n\n".join(batch))
@@ -213,38 +228,117 @@ class CommandHandler:
         if batch:
             self.vk.send_big(peer_id, "\n\n".join(batch))
 
+    # ---------------------------------------------------------
+    # AI
+    # ---------------------------------------------------------
     def cmd_ai(self, peer_id, parts):
         if len(parts) < 2:
             return self.vk.send(peer_id, "Использование: /ai <текст>")
         ans = ask_ai(parts[1])
         self.vk.send(peer_id, ans)
 
+    # ---------------------------------------------------------
+    # POST MESSAGE
+    # ---------------------------------------------------------
     def cmd_otvet(self, peer_id, parts):
         if len(parts) < 3:
             return self.vk.send(peer_id, "Использование: /otvet <url> <текст>")
+
         url = normalize_url(parts[1])
         text = parts[2]
+
         if not url.startswith(FORUM_BASE):
             return self.vk.send(peer_id, f"❌ Только форум {FORUM_BASE}")
+
         try:
             res = self.tracker.post_message(url, text)
         except Exception as e:
             return self.vk.send(peer_id, f"Ошибка: {e}")
+
         if res.get("ok"):
             try:
                 latest = self.tracker.fetch_latest_post_id(url)
-                if latest: update_last(peer_id, url, str(latest))
+                if latest:
+                    update_last(peer_id, url, str(latest))
             except:
                 pass
             return self.vk.send(peer_id, "✅ Сообщение отправлено.")
         else:
             return self.vk.send(peer_id, f"❌ Ошибка: {res.get('error')}")
 
+    # ---------------------------------------------------------
+    # NEW: /tlist (5 последних тем)
+    # ---------------------------------------------------------
+    def cmd_tlist(self, peer_id, parts):
+        if len(parts) < 2:
+            return self.vk.send(peer_id, "Использование: /tlist <url-раздела>")
+
+        url = normalize_url(parts[1])
+
+        if "forums" not in url.lower():
+            return self.vk.send(peer_id, "❌ Это не ссылка на раздел.")
+
+        html = self.tracker.fetch_html(url)
+        if not html:
+            return self.vk.send(peer_id, "❌ Не удалось загрузить HTML раздела.")
+
+        topics = parse_forum_topics(html, url)
+        if not topics:
+            return self.vk.send(peer_id, "⚠️ Темы не найдены.")
+
+        last5 = topics[:5]
+
+        out = "📝 Последние темы раздела:\n\n"
+        for t in last5:
+            out += f"📄 {t['title']}\n🔗 {t['url']}\n👤 {t['author']}\n\n"
+
+        self.vk.send(peer_id, out)
+
+    # ---------------------------------------------------------
+    # NEW: /tlistall (все темы)
+    # ---------------------------------------------------------
+    def cmd_tlistall(self, peer_id, parts):
+        if len(parts) < 2:
+            return self.vk.send(peer_id, "Использование: /tlistall <url-раздела>")
+
+        url = normalize_url(parts[1])
+
+        if "forums" not in url.lower():
+            return self.vk.send(peer_id, "❌ Это не ссылка на раздел.")
+
+        html = self.tracker.fetch_html(url)
+        if not html:
+            return self.vk.send(peer_id, "❌ Не удалось загрузить раздел.")
+
+        topics = parse_forum_topics(html, url)
+        if not topics:
+            return self.vk.send(peer_id, "⚠️ Темы не найдены.")
+
+        chunks = []
+        block = ""
+
+        for t in topics:
+            line = f"📄 {t['title']}\n🔗 {t['url']}\n👤 {t['author']}\n\n"
+            if len(block) + len(line) > 3500:
+                chunks.append(block)
+                block = ""
+            block += line
+
+        if block:
+            chunks.append(block)
+
+        for c in chunks:
+            self.vk.send(peer_id, c)
+
+    # ---------------------------------------------------------
+    # ADMIN COMMANDS
+    # ---------------------------------------------------------
     def cmd_kick(self, peer_id, parts):
         if len(parts) < 2:
             return self.vk.send(peer_id, "Использование: /kick <id>")
         if peer_id <= 2000000000:
             return self.vk.send(peer_id, "Kick работает только в беседах.")
+
         uid = self._parse_user(parts[1])
         try:
             chat = peer_id - 2000000000
@@ -258,12 +352,14 @@ class CommandHandler:
             return self.vk.send(peer_id, "Использование: /ban <id>")
         uid = self._parse_user(parts[1])
         add_ban(peer_id, uid)
+
         if peer_id > 2000000000:
             try:
                 chat = peer_id - 2000000000
                 self.vk.api.messages.removeChatUser(chat_id=chat, member_id=uid)
             except:
                 pass
+
         self.vk.send(peer_id, f"🚫 Забанен: {uid}")
 
     def cmd_unban(self, peer_id, parts):
@@ -276,9 +372,11 @@ class CommandHandler:
     def cmd_mute(self, peer_id, parts):
         if len(parts) < 2:
             return self.vk.send(peer_id, "Использование: /mute <id> <sec>")
+
         args = parts[1].split()
         uid = self._parse_user(args[0])
         sec = int(args[1]) if len(args) > 1 and args[1].isdigit() else 600
+
         self.vk.send(peer_id, f"🔇 {uid} замьючен на {sec} сек (симуляция).")
 
     def cmd_unmute(self, peer_id, parts):
@@ -329,14 +427,19 @@ class CommandHandler:
             self.vk.send(peer_id, f"Ошибка stats: {e}")
 
     def cmd_help(self, peer_id):
-        self.vk.send(peer_id,
+        self.vk.send(
+            peer_id,
             "/track <url>\n/untrack <url>\n/list\n/check\n/checkfa <url>\n"
+            "/tlist <url>\n/tlistall <url>\n"
             "/otvet <url> <text>\n/ai <text>\n"
             "/kick <id>\n/ban <id>\n/unban <id>\n"
             "/mute <id> <sec>\n/unmute <id>\n"
             "/warn <id>\n/warns <id>\n/clearwarns <id>\n/stats"
         )
 
+    # ---------------------------------------------------------
+    # USER PARSER
+    # ---------------------------------------------------------
     def _parse_user(self, s):
         if not s:
             return 0
