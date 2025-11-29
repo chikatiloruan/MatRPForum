@@ -139,7 +139,7 @@ class CommandHandler:
 
        
     def cmd_checkcookies(self, peer_id):
-        r = self.forum.check_cookies()
+        r = self.tracker.check_cookies()
 
         msg = (
             "🔍 Проверка cookies\n"
