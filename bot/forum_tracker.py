@@ -606,7 +606,7 @@ class ForumTracker:
             "normal_err": normal_error,
             "multipart_err": multipart_error
         }
-     def check_cookies(self):
+    def check_cookies(self):
         """
         Полная проверка авторизации через cookies.
         Возвращает True если бот реально залогинен на форуме.
