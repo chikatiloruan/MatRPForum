@@ -20,6 +20,7 @@ class CommandHandler:
     def __init__(self, vk):
         self.vk = vk
         self.tracker = ForumTracker(vk)
+        self.forum = self.tracker
         self._last_msg = None
 
     # ---------------------------------------------------------
@@ -82,7 +83,8 @@ class CommandHandler:
             # 🔥🔥🔥 НОВАЯ КОМАНДА DEBUG — ДОБАВЛЕНО
             if cmd == "/debug_otvet":
                 return self.cmd_debug_otvet(peer_id, parts)
-        # 🔥 NEW: Проверка куков
+        
+            
             if cmd == "/checkcookies":
                 return self.cmd_checkcookies(peer_id)
 
