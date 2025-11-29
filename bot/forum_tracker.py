@@ -63,25 +63,6 @@ def build_cookies() -> dict:
         "xf_csrf": globals().get("XF_CSRF", XF_CSRF) or "",
     }
 
-def fetch_html(url: str, timeout: int = 15) -> str:
-    """GET page with cookies and UA — return text or empty on error."""
-    if not url:
-        return ""
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Referer": FORUM_BASE or ""
-    }
-    cookies = build_cookies()
-    try:
-        r = requests.get(url, headers=headers, cookies=cookies, timeout=timeout)
-        if r.status_code == 200:
-            return r.text
-        warn(f"HTTP {r.status_code} for {url}")
-        return ""
-    except Exception as e:
-        warn(f"fetch_html error for {url}: {e}")
-        return ""
 
 # ======================================================================
 #  Parsers: thread posts and forum topics
