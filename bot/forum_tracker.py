@@ -293,6 +293,26 @@ class ForumTracker:
             return
 
         typ = detect_type(url)
+
+        # ===================================================================
+    #  Ручная загрузка всех постов (используется /checkfa)
+    # ===================================================================
+    def manual_fetch_posts(self, url: str):
+        url = normalize_url(url)
+
+        if not url.startswith(FORUM_BASE):
+            return {"ok": False, "error": "URL outside FORUM_BASE"}
+
+        html = fetch_html(url)
+        if not html:
+            return {"ok": False, "error": "Cannot fetch page"}
+
+        try:
+            posts = parse_thread_posts(html, url)
+            return {"ok": True, "posts": posts}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
     # ===================================================================
     # KEEPALIVE — пинг форума раз в N секунд (держит сессию активной)
     # ===================================================================
