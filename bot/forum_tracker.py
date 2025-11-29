@@ -87,47 +87,71 @@ def fetch_html(url: str, timeout: int = 15) -> str:
 #  Parsers: thread posts and forum topics
 # ======================================================================
 def parse_thread_posts(html: str, page_url: str) -> List[Dict]:
-    """
-    Parse thread page and return list of posts:
-    each post: {id, author, date, text, link}
-    """
     soup = BeautifulSoup(html or "", "html.parser")
 
-    # Prefer XenForo 2.3 markup commonly used on MatRP
-    messages = soup.select("div.message[data-content], article.message, article.message--post, .message")
+    # Сообщения XenForo 2.3
+    messages = soup.select("div.message[data-content]")
 
-    out: List[Dict] = []
+    out = []
+
     for m in messages:
         try:
-            # try data-content first (XenForo block)
-            pid = ""
-            if m.get("data-content"):
-                pid = str(m.get("data-content")).replace("post-", "")
-            else:
-                # fallback: try id attributes in markup
-                raw = str(m)
-                pid = extract_post_id_from_article(raw) or extract_thread_id(page_url) or ""
-            # author
-            author_el = m.select_one(".message-name a, .username a, .username, .message-userCard a, .message-author")
+            # ID поста
+            pid = m.get("data-content", "").replace("post-", "")
+
+            # Автор
+            author_el = m.select_one(".message-name a, .username a")
             author = author_el.get_text(strip=True) if author_el else "Неизвестно"
-            # time
+
+            # Дата
             time_el = m.select_one("time")
-            date = ""
-            if time_el:
-                date = time_el.get("datetime") or time_el.get_text(strip=True) or ""
+            date = time_el.get("datetime", "") if time_el else "Неизвестно"
+
+            # ---- ТЕКСТ ПОСТА (ЧИСТЫЙ!) ----
+            body = m.select_one(".bbWrapper")
+            if body:
+
+                # ❌ Убираем подписи
+                for sig in body.select(".message-signature, .signature, .post-signature"):
+                    sig.decompose()
+
+                # ❌ Убираем нижние служебные блоки
+                for e in body.select(".message-resources, .message-lastEdit, .bbCodeBlock-expandContent"):
+                    e.decompose()
+
+                # ❌ Убираем все скрытые элементы
+                for hidden in body.select("[style*='display:none'], .is-hidden"):
+                    hidden.decompose()
+
+                # ❌ Удаляем цитаты "Отправлено с телефона" и подобные
+                for q in body.select(".bbCodeBlock--expandable, .bbCodeBlock--unfurl, .bbCodeBlock--quote"):
+                    # НЕ удаляем обычные цитаты, только системные
+                    if "телеф" in q.get_text().lower() or "mobile" in q.get_text().lower():
+                        q.decompose()
+
+                # ✓ Чистый текст
+                text = body.get_text("\n", strip=True)
+
             else:
-                dnode = m.select_one(".date, .Message-time, .message-time")
-                date = dnode.get_text(strip=True) if dnode else "Неизвестно"
-            # body
-            body_el = m.select_one(".bbWrapper, .message-body, .message-content, .postMessage, .uix_post_message")
-            text = body_el.get_text("\n", strip=True) if body_el else ""
-            link = page_url + (f"#post-{pid}" if pid else "")
-            out.append({"id": str(pid or ""), "author": author, "date": date, "text": text, "link": link})
+                text = ""
+
+            # Ссылка на пост
+            link = f"{page_url}#post-{pid}"
+
+            out.append({
+                "id": pid,
+                "author": author,
+                "date": date,
+                "text": text,
+                "link": link
+            })
+
         except Exception as e:
-            warn(f"parse_thread_posts item error: {e}")
-            traceback.print_exc()
+            warn(f"parse_thread_posts error: {e}")
             continue
+
     return out
+
 
 def parse_forum_topics(html: str, page_url: str) -> List[Dict]:
     """
