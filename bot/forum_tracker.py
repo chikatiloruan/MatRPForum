@@ -86,64 +86,74 @@ def fetch_html(url: str, timeout: int = 15) -> str:
 # ======================================================================
 #  Parsers: thread posts and forum topics
 # ======================================================================
-def parse_thread_posts(html: str, page_url: str) -> List[Dict]:
+def parse_thread_posts(html: str, page_url: str):
+    """
+    Новый парсер постов MatRP (XenForo)
+    Работает с разметкой:
+    article.message-body.js-selectToQuote
+        div.bbWrapper ← здесь фактический текст поста
+    
+    + корректно извлекает:
+        • id поста
+        • автора
+        • дату
+        • текст БЕЗ подписи
+    """
+
     soup = BeautifulSoup(html or "", "html.parser")
 
-    # Сообщения XenForo 2.3
-    messages = soup.select("div.message[data-content]")
-
+    # Все посты по новому формату
+    posts = soup.select("article.message-body.js-selectToQuote")
     out = []
 
-    for m in messages:
+    for msg in posts:
         try:
             # ID поста
-            pid = m.get("data-content", "").replace("post-", "")
+            pid = msg.get("data-lb-id") \
+               or msg.get("data-id") \
+               or msg.get("data-post-id") \
+               or ""
+
+            if not pid:
+                # fallback на article id="js-post-123"
+                art = msg.find_parent("article")
+                if art:
+                    pid = extract_post_id_from_article(str(art))
+
+            pid = str(pid)
 
             # Автор
-            author_el = m.select_one(".message-name a, .username a")
-            author = author_el.get_text(strip=True) if author_el else "Неизвестно"
+            user = (
+                msg.find_previous("a", class_="username")
+                or msg.find_previous("h4", class_="message-name")
+                or msg.find_previous("span", class_="username")
+            )
+            author = user.get_text(strip=True) if user else "Неизвестно"
 
             # Дата
-            time_el = m.select_one("time")
-            date = time_el.get("datetime", "") if time_el else "Неизвестно"
+            t = msg.find_previous("time")
+            date = t.get("datetime") if t else (t.get_text(strip=True) if t else "")
 
-            # ---- ТЕКСТ ПОСТА (ЧИСТЫЙ!) ----
-            body = m.select_one(".bbWrapper")
+            # Текст поста — именно ТУТ правильный путь
+            body = msg.select_one("div.bbWrapper")
             if body:
-
-                # ❌ Убираем подписи
-                for sig in body.select(".message-signature, .signature, .post-signature"):
-                    sig.decompose()
-
-                # ❌ Убираем нижние служебные блоки
-                for e in body.select(".message-resources, .message-lastEdit, .bbCodeBlock-expandContent"):
-                    e.decompose()
-
-                # ❌ Убираем все скрытые элементы
-                for hidden in body.select("[style*='display:none'], .is-hidden"):
-                    hidden.decompose()
-
-                # ❌ Удаляем цитаты "Отправлено с телефона" и подобные
-                for q in body.select(".bbCodeBlock--expandable, .bbCodeBlock--unfurl, .bbCodeBlock--quote"):
-                    # НЕ удаляем обычные цитаты, только системные
-                    if "телеф" in q.get_text().lower() or "mobile" in q.get_text().lower():
-                        q.decompose()
-
-                # ✓ Чистый текст
                 text = body.get_text("\n", strip=True)
-
             else:
-                text = ""
+                # fallback
+                text = msg.get_text("\n", strip=True)
 
-            # Ссылка на пост
-            link = f"{page_url}#post-{pid}"
+            # Удаляем подписи/служебные блоки
+            text = re.sub(r'\n{2,}', '\n', text).strip()
+
+            # Формируем ссылку
+            link = page_url + f"#post-{pid}"
 
             out.append({
                 "id": pid,
                 "author": author,
                 "date": date,
                 "text": text,
-                "link": link
+                "link": link,
             })
 
         except Exception as e:
