@@ -464,138 +464,157 @@ class ForumTracker:
     #  ОТПРАВКА СООБЩЕНИЙ В ТЕМУ (полностью исправлено)
     # ===================================================================
     def post_message(self, url: str, message: str):
-        """
-        Универсальная, устойчивая отправка ответа в XenForo.
-        Работает на MatRP, учитывает защиту, токены, multipart.
-        """
+    """
+    Новая улучшенная отправка сообщения в тему.
+    Поддерживает:
+    - message_html
+    - quick-reply
+    - add-reply
+    - multipart fallback
+    - debug логирование
+    """
 
-        url = normalize_url(url)
-        if not url.startswith(FORUM_BASE):
-            return {"ok": False, "error": "URL outside FORUM_BASE"}
+    debug(f"[POST] Sending to: {url}")
 
-        html = fetch_html(url)
-        if not html:
-            return {"ok": False, "error": "Cannot fetch page"}
+    url = normalize_url(url)
+    if not url.startswith(FORUM_BASE):
+        return {"ok": False, "error": "URL outside FORUM_BASE"}
 
-        soup = BeautifulSoup(html, "html.parser")
+    # Проверка куков
+    debug(f"[POST] Cookies: xf_user={XF_USER[:6]}..., xf_session={XF_SESSION[:6]}..., xf_tfa={XF_TFA_TRUST[:6]}...")
 
-        # ---------------------------------------------------------------
-        # 1) Ищем форму ответа
-        # ---------------------------------------------------------------
-        form = (
-            soup.select_one("form[action*='add-reply']")
-            or soup.select_one("form.js-quickReply")
-            or soup.select_one("form[data-xf-init*='quick-reply']")
-            or soup.select_one("form[action*='post']")
-        )
+    html = fetch_html(url)
+    if not html:
+        return {"ok": False, "error": "Cannot fetch page"}
 
-        if not form:
-            return {"ok": False, "error": "Reply form not found"}
+    soup = BeautifulSoup(html, "html.parser")
 
-        action = form.get("action") or url
-        if not action.startswith("http"):
-            action = urljoin(FORUM_BASE, action.lstrip("/"))
+    # -------------------------------
+    # 1) Поиск формы
+    # -------------------------------
+    form = (
+        soup.select_one("form[action*='add-reply']")
+        or soup.select_one("form.js-quickReply")
+        or soup.select_one("form[data-xf-init*='quick-reply']")
+        or soup.select_one("form[action*='post']")
+    )
 
-        # ---------------------------------------------------------------
-        # 2) Собираем hidden-поля
-        # ---------------------------------------------------------------
-        payload = {}
-        for inp in form.select("input"):
-            name = inp.get("name")
-            if name:
-                payload[name] = inp.get("value", "")
+    debug(f"[POST] Form found: {bool(form)}")
 
-        # токен XenForo
-        token = (
-            soup.find("input", {"name": "_xfToken"}) 
-            or soup.find("input", {"name": "csrf"})
-            or None
-        )
-        if token:
-            payload["_xfToken"] = token.get("value", "")
+    if not form:
+        return {"ok": False, "error": "Reply form not found"}
 
-        # ---------------------------------------------------------------
-        # 3) Определяем правильное поле message
-        # ---------------------------------------------------------------
-        textarea = (
-            form.select_one("textarea[name='message_html']")
-            or form.select_one("textarea[name='message']")
-            or form.select_one("textarea[data-original-name='message']")
-        )
+    action = form.get("action") or url
+    if not action.startswith("http"):
+        action = urljoin(FORUM_BASE, action.lstrip("/"))
 
-        if not textarea:
-            return {"ok": False, "error": "Textarea not found"}
+    debug(f"[POST] Form action: {action}")
 
-        textarea_name = textarea.get("name")
+    # -------------------------------
+    # 2) Hidden поля
+    # -------------------------------
+    payload = {}
+    for inp in form.select("input"):
+        name = inp.get("name")
+        if name:
+            payload[name] = inp.get("value", "")
 
-        # HTML-контент
-        payload[textarea_name] = f"<p>{message}</p>"
+    # TOKEN
+    token = (
+        soup.find("input", {"name": "_xfToken"})
+        or soup.find("input", {"name": "csrf"})
+    )
+    if token:
+        payload["_xfToken"] = token.get("value", "")
 
-        # Материализация XF-запроса
-        payload["_xfWithData"] = "1"
-        payload["_xfResponseType"] = "json"
+    debug(f"[POST] xfToken: {payload.get('_xfToken')}")
 
-        # ---------------------------------------------------------------
-        # 4) Заголовки + cookies
-        # ---------------------------------------------------------------
-        headers = {
-            "User-Agent": "Mozilla/5.0",
-            "Referer": url,
-            "X-Requested-With": "XMLHttpRequest",
-            "Accept": "*/*",
-        }
+    # -------------------------------
+    # 3) Определение поля message
+    # -------------------------------
+    textarea = (
+        form.select_one("textarea[name='message_html']")
+        or form.select_one("textarea[name='message']")
+        or form.select_one("textarea[data-original-name='message']")
+    )
 
-        cookies = build_cookies()
+    debug(f"[POST] Textarea found: {bool(textarea)}")
 
-        # ---------------------------------------------------------------
-        # 5) Пытаемся отправить NORMAL POST
-        # ---------------------------------------------------------------
-        try:
-            r = self.session.post(action, data=payload, headers=headers)
-            if r.status_code in (200, 204, 302):
-                # проверяем по HTML
-                time.sleep(1)
-                check = fetch_html(url)
-                if message.split()[0] in check:
-                    return {"ok": True, "response": "posted (normal mode)"}
-            last_normal_err = f"HTTP {r.status_code}"
-        except Exception as e:
-            last_normal_err = str(e)
+    if not textarea:
+        return {"ok": False, "error": "Textarea not found"}
 
-        warn(f"Normal POST failed: {last_normal_err}")
+    textarea_name = textarea.get("name")
+    payload[textarea_name] = f"<p>{message}</p>"
 
-        # ---------------------------------------------------------------
-        # 6) MULTIPART попытка
-        # ---------------------------------------------------------------
-        multipart = {textarea_name: (None, f"<p>{message}</p>", "text/html")}
+    payload["_xfWithData"] = "1"
+    payload["_xfResponseType"] = "json"
 
-        # добавляем hidden
-        for k, v in payload.items():
-            if k != textarea_name:
-                multipart[k] = (None, v)
+    # -------------------------------
+    # 4) Заголовки
+    # -------------------------------
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Referer": url,
+        "X-Requested-With": "XMLHttpRequest",
+        "Accept": "*/*",
+    }
 
-        try:
-            r = self.session.post(action, files=multipart, headers=headers)
-            if r.status_code in (200, 204, 302):
-                time.sleep(1)
-                check = fetch_html(url)
-                if message.split()[0] in check:
-                    return {"ok": True, "response": "posted (multipart mode)"}
-            last_multi_err = f"HTTP {r.status_code}"
-        except Exception as e:
-            last_multi_err = str(e)
+    # -------------------------------
+    # 5) Обычный POST
+    # -------------------------------
+    debug("[POST] Trying normal mode...")
+    try:
+        r = self.session.post(action, data=payload, headers=headers)
+        debug(f"[POST] Normal POST code: {r.status_code}")
 
-        warn(f"Multipart failed: {last_multi_err}")
+        if r.status_code in (200, 204, 302):
+            time.sleep(1)
+            check = fetch_html(url)
+            if message.split()[0] in check:
+                return {"ok": True, "response": "posted (normal)"}
 
-        # ---------------------------------------------------------------
-        # 7) Полный фейл
-        # ---------------------------------------------------------------
-        return {
-            "ok": False,
-            "error": "Post failed",
-            "normal_err": last_normal_err,
-            "multipart_err": last_multi_err
-        }
+        normal_error = f"HTTP {r.status_code}"
+    except Exception as e:
+        normal_error = str(e)
+
+    warn(f"[POST] Normal failed: {normal_error}")
+
+    # -------------------------------
+    # 6) MULTIPART fallback
+    # -------------------------------
+    debug("[POST] Trying multipart...")
+
+    multipart = {
+        textarea_name: (None, f"<p>{message}</p>", "text/html")
+    }
+
+    for k, v in payload.items():
+        if k != textarea_name:
+            multipart[k] = (None, v)
+
+    try:
+        r = self.session.post(action, files=multipart, headers=headers)
+        debug(f"[POST] Multipart code: {r.status_code}")
+
+        if r.status_code in (200, 204, 302):
+            time.sleep(1)
+            check = fetch_html(url)
+            if message.split()[0] in check:
+                return {"ok": True, "response": "posted (multipart)"}
+
+        multipart_error = f"HTTP {r.status_code}"
+    except Exception as e:
+        multipart_error = str(e)
+
+    warn(f"[POST] Multipart failed: {multipart_error}")
+
+    return {
+        "ok": False,
+        "error": "Post failed",
+        "normal_err": normal_error,
+        "multipart_err": multipart_error
+    }
+
 # ======================================================================
 #  ОСТАВАТЬСЯ ОНЛАЙН (ФУНКЦИЯ ДЛЯ main.py)
 # ======================================================================
