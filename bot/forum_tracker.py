@@ -410,27 +410,27 @@ class ForumTracker:
     # ===================================================================
 
     def check_cookies(self):
-    """
-    Полная проверка авторизации через cookies.
-    Возвращает True если бот реально залогинен на форуме.
-    """
+        """
+        Полная проверка авторизации через cookies.
+        Возвращает True если бот реально залогинен на форуме.
+        """
 
-    test_url = FORUM_BASE + "/index.php"
+       test_url = FORUM_BASE + "/index.php"
     
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/122.0.0.0 Safari/537.36"
-        )
-    }
+       headers = {
+           "User-Agent": (
+               "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+               "AppleWebKit/537.36 (KHTML, like Gecko) "
+               "Chrome/122.0.0.0 Safari/537.36"
+           )
+      }
 
     # cookies, которые ты используешь
-    cookies = {
-        "xf_user": XF_USER,
-        "xf_session": XF_SESSION,
-        "xf_tfa_trust": XF_TFA_TRUST
-    }
+       cookies = {
+           "xf_user": XF_USER,
+           "xf_session": XF_SESSION,
+           "xf_tfa_trust": XF_TFA_TRUST
+       }
 
     try:
         r = self.session.get(test_url, headers=headers, cookies=cookies)
