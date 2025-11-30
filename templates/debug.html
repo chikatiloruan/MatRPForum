@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Debug — Forum Tracker</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script>
+    async function loadLogs(){
+      const r = await fetch('/api/logs');
+      const j = await r.json();
+      const el = document.getElementById('logs');
+      el.innerText = j.logs.join("\n");
+    }
+    async function revealCookies(){
+      const r = await fetch('/api/cookies/reveal', {method: 'POST'});
+      const j = await r.json();
+      document.getElementById('cookies').innerText = JSON.stringify(j, null, 2);
+    }
+    setInterval(loadLogs, 2000);
+    window.onload = loadLogs;
+  </script>
+</head>
+<body class="bg">
+  <nav class="topbar"><div class="brand">Debug Panel</div><div class="navactions"><a href="/">Back</a></div></nav>
+  <main class="container">
+    <section class="card">
+      <h3>Info</h3>
+      <pre>{{ info }}</pre>
+    </section>
+
+    <section class="card">
+      <h3>Cookies (hidden, press reveal)</h3>
+      <button onclick="revealCookies()">Reveal cookies</button>
+      <pre id="cookies">[hidden]</pre>
+    </section>
+
+    <section class="card">
+      <h3>Recent logs</h3>
+      <pre id="logs">loading…</pre>
+    </section>
+  </main>
+</body>
+</html>
