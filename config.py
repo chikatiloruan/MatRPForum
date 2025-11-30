@@ -9,11 +9,8 @@ FORUM_BASE = "https://forum.matrp.ru"
 
 POLL_INTERVAL_SEC = 10
 
-
-# config.py (дополни к существующим)
-WEB_LOGIN = "ruan"              # логин для панели
-WEB_PASSWORD = "sosal"   # пароль для панели
-DEBUG_PASSWORD = "RuanMT" # отдельный пароль для debug-панели
-FLASK_SECRET = "replace_with_random_secret_key"  # секрет для flask-session
-WEB_PORT = 8080                  # порт для веб-панели
-ALLOW_REMOTE = True              # если False — слушать только 127.0.0.1
+# config.py (добавь в свой существующий config.py)
+ADMIN_USER = "ruan"          # логин панели
+ADMIN_PASS = "top"    # пароль панели
+DEBUG_PASS = "sosal"    # отдельный пароль для страницы debug
+# XF_USER, XF_SESSION, XF_TFA_TRUST уже есть в твоём config.py
