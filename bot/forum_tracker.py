@@ -18,12 +18,13 @@ import datetime
 #   CONFIG / DEFAULTS
 # ======================================================================
 try:
-    from config import XF_USER, XF_SESSION, XF_TFA_TRUST, FORUM_BASE, POLL_INTERVAL_SEC
+    from config import XF_USER, XF_SESSION, XF_TFA_TRUST, FORUM_BASE, POLL_INTERVAL_SEC, XF_CSRF
 except Exception:
     XF_USER = ""
     XF_SESSION = ""
     XF_TFA_TRUST = ""
     FORUM_BASE = ""
+    XF_CSRF = ""
     POLL_INTERVAL_SEC = 20
 
 DEFAULT_POLL = 20
