@@ -148,84 +148,66 @@ def parse_thread_posts(html: str, page_url: str):
 
 def parse_forum_topics(html: str, base_url: str):
     soup = BeautifulSoup(html, "html.parser")
-    out = []
 
-    # --- Универсальный поиск структур форума ---
-    # MatRP использует несколько возможных контейнеров
-    containers = []
+    topics = []
 
-    # pinned + regular (старый стиль)
-    containers += soup.select(".uix_stickyContainerOuter .structItem")
-    containers += soup.select(".uix_stickyContainerInner .structItem")
+    # Ищем только настоящие темы
+    blocks = soup.select(".structItem.structItem--thread")
 
-    # новый стиль XenForo 2.2+
-    containers += soup.select(".structItemContainer-group .structItem")
-    containers += soup.select(".block-body .structItem")
-
-    # fallback — вообще все structItem
-    if not containers:
-        containers = soup.select(".structItem")
-
-    seen_ids = set()
-
-    def parse_item(it):
-        # ID темы
-        tid = (
-            it.get("data-thread-id")
-            or it.get("data-lb-id")
-            or it.get("data-content-id")
-        )
-
-        # если ID нет — пробуем через ссылку
-        if not tid:
-            a = it.select_one("a.structItem-title")
-            if a:
-                tid = extract_thread_id(a.get("href"))
-
+    for it in blocks:
         try:
+            # tid из класса js-threadListItem-XXXXXX
+            tid = None
+            classes = it.get("class", [])
+            for c in classes:
+                if c.startswith("js-threadListItem-"):
+                    tid = c.replace("js-threadListItem-", "")
+                    break
+
+            if not tid:
+                # fallback по ссылке
+                a = it.select_one(".structItem-title a[href]")
+                if a:
+                    href = a.get("href")
+                    m = re.search(r"\.(\d+)/", href)
+                    if m:
+                        tid = m.group(1)
+
+            if not tid:
+                continue
+
             tid = int(tid)
-        except:
-            return None
-        
-        if tid in seen_ids:
-            return None
-        seen_ids.add(tid)
 
-        # ссылка
-        a = it.select_one("a.structItem-title")
-        if not a:
-            return None
+            # Заголовок
+            a = it.select_one(".structItem-title a[data-preview-url], .structItem-title a[href]")
+            if not a:
+                continue
 
-        href = a.get("href", "")
-        url = href if href.startswith("http") else base_url + href
+            title = a.get_text(strip=True)
 
-        # название
-        title = a.get_text(strip=True)
+            # URL
+            href = a.get("href")
+            url = href if href.startswith("http") else base_url.split("/index.php")[0] + href
 
-        # автор
-        author_el = it.select_one(".username")
-        author = author_el.get_text(strip=True) if author_el else "Unknown"
+            # Автор
+            auth_el = it.select_one(".username")
+            author = auth_el.get_text(strip=True) if auth_el else "Unknown"
 
-        # закреплённая ли?
-        pinned = bool(it.select_one(".structItem-status--sticky"))
+            # Закреплена ли тема
+            pinned = "structItem--pinned" in it.get("class", [])
 
-        return {
-            "tid": tid,
-            "title": title,
-            "author": author,
-            "url": url,
-            "pinned": pinned
-        }
+            topics.append({
+                "tid": tid,
+                "title": title,
+                "author": author,
+                "url": url,
+                "pinned": pinned
+            })
 
-    for block in containers:
-        item = parse_item(block)
-        if item:
-            out.append(item)
+        except Exception:
+            continue
 
-    return out
-
-
-
+    return topics
 
 
 # ======================================================================
