@@ -445,7 +445,7 @@ class ForumTracker:
     # debug what bot sees for reply form
     def debug_reply_form(self, url: str) -> str:
         url = normalize_url(url)
-        html = fetch_html(url)
+        html = self.fetch_html(url)
         cookies = build_cookies()
         if not html:
             return "❌ Не удалось загрузить страницу\nCookies: " + str(cookies)
