@@ -387,7 +387,7 @@ class ForumTracker:
            warn(f"failed to fetch: {url}")
            return
 
-       typ = detect_type(url)
+        typ = detect_type(url)
 
     # ============================================================
     # THREAD — новые сообщения
