@@ -377,17 +377,17 @@ class ForumTracker:
                 traceback.print_exc()
 
     def _process_url(self, url: str, subscribers):
-    url = normalize_url(url)
-    if not url.startswith(FORUM_BASE):
-        debug(f"[process] skipping non-forum url: {url}")
-        return
+        url = normalize_url(url)
+        if not url.startswith(FORUM_BASE):
+           debug(f"[process] skipping non-forum url: {url}")
+           return
 
-    html = self.fetch_html(url)
-    if not html:
-        warn(f"failed to fetch: {url}")
-        return
+        html = self.fetch_html(url)
+        if not html:
+           warn(f"failed to fetch: {url}")
+           return
 
-    typ = detect_type(url)
+       typ = detect_type(url)
 
     # ============================================================
     # THREAD — новые сообщения
