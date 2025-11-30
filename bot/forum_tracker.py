@@ -149,29 +149,21 @@ def parse_forum_topics(html: str, base_url: str):
 
     out = []
 
-    # -----------------------------------------------------
-    # 1) PINNED (закреплённые)
-    # -----------------------------------------------------
-    pinned_blocks = soup.select(".uix_stickyContainerOuter.is-active .structItem")
+    # Главный контейнер тем
+    container = soup.select_one("div.structItemContainer-group.js-threadList")
 
-    # -----------------------------------------------------
-    # 2) REGULAR (обычные)
-    # -----------------------------------------------------
-    regular_blocks = soup.select(".uix_stickyContainerInner .structItem")
+    if not container:
+        return []
 
-    # --- Функция парсинга одного блока ---
-    def parse_item(it, pinned=False):
-        # ID темы
-        tid = (
-            it.get("data-lb-id")
-            or it.get("data-thread-id")
-            or it.get("data-content-id")
-            or None
-        )
+    # Все темы внутри
+    blocks = container.select("div.structItem.structItem--thread")
 
-        # Если ID нет — пробуем через ссылку
+    def parse_item(it):
+        # ID темы (на MatRP это data-content-id)
+        tid = it.get("data-content-id") or None
         if not tid:
-            a = it.select_one("a.structItem-title")
+            # fallback — пробуем вытащить из href
+            a = it.select_one(".structItem-title a")
             if a:
                 tid = extract_thread_id(a.get("href"))
 
@@ -180,20 +172,22 @@ def parse_forum_topics(html: str, base_url: str):
         except:
             return None
 
-        # Ссылка
-        a = it.select_one("a.structItem-title")
+        # Заголовок
+        a = it.select_one(".structItem-title a")
         if not a:
             return None
 
-        href = a.get("href", "")
-        url = href if href.startswith("http") else FORUM_BASE + href
+        href = a.get("href", "").strip()
+        url = href if href.startswith("http") else base_url + href
 
-        # Название
         title = a.get_text(strip=True)
 
         # Автор
-        author_el = it.select_one(".username, .structItem-parts .username")
+        author_el = it.select_one(".username")
         author = author_el.get_text(strip=True) if author_el else "Unknown"
+
+        # Закреплено ли?
+        pinned = bool(it.select_one(".structItem-icon--sticky"))
 
         return {
             "tid": tid,
@@ -203,15 +197,8 @@ def parse_forum_topics(html: str, base_url: str):
             "pinned": pinned
         }
 
-    # --- Обрабатываем все pinned ---
-    for block in pinned_blocks:
-        item = parse_item(block, pinned=True)
-        if item:
-            out.append(item)
-
-    # --- Обрабатываем все обычные ---
-    for block in regular_blocks:
-        item = parse_item(block, pinned=False)
+    for block in blocks:
+        item = parse_item(block)
         if item:
             out.append(item)
 
