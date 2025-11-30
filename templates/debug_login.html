@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Debug Login</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="bg">
+  <div class="panel">
+    <h2>Debug — пароль</h2>
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+    <form method="post">
+      <label>Debug password</label>
+      <input name="debug_password" type="password" />
+      <button type="submit">Enter Debug</button>
+    </form>
+  </div>
+</body>
+</html>
