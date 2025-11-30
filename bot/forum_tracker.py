@@ -608,7 +608,7 @@ class ForumTracker:
             debug(f"[POST] Multipart code: {getattr(r, 'status_code', 'ERR')}")
             if getattr(r, "status_code", 0) in (200, 204, 302):
                 time.sleep(1)
-                check = fetch_html(url)
+                check = self.fetch_html(url)
                 if check and message.split()[0] in check:
                     return {"ok": True, "response": "posted (multipart)"}
             multipart_error = f"HTTP {getattr(r, 'status_code', 'ERR')}"
@@ -652,7 +652,7 @@ class ForumTracker:
     def _keepalive_loop(self):
         while self._keepalive_running:
             try:
-                fetch_html(FORUM_BASE)
+                self.fetch_html(FORUM_BASE)
             except Exception as e:
                 warn(f"keepalive error: {e}")
             time.sleep(max(60, self.interval * 3))
