@@ -379,25 +379,25 @@ class ForumTracker:
     def _process_url(self, url: str, subscribers):
         url = normalize_url(url)
         if not url.startswith(FORUM_BASE):
-           debug(f"[process] skipping non-forum url: {url}")
-           return
+            debug(f"[process] skipping non-forum url: {url}")
+            return
 
         html = self.fetch_html(url)
         if not html:
-           warn(f"failed to fetch: {url}")
-           return
+            warn(f"failed to fetch: {url}")
+            return
 
         typ = detect_type(url)
 
     # ============================================================
     # THREAD — новые сообщения
     # ============================================================
-    if typ == "thread":
-        posts = parse_thread_posts(html, url)
-        if not posts:
-            return
+        if typ == "thread":
+            posts = parse_thread_posts(html, url)
+            if not posts:
+                return
 
-        newest = posts[-1]
+            newest = posts[-1]
 
         for peer_id, _, last in subscribers:
             last_str = str(last) if last is not None else None
@@ -421,7 +421,6 @@ class ForumTracker:
 
         return  # END THREAD
 
-
     # ============================================================
     # FORUM — новые темы (включая pinned)
     # ============================================================
@@ -431,27 +430,23 @@ class ForumTracker:
             warn(f"parse_forum_topics returned empty list for {url}")
             return
 
-        # Все tid
         all_tids = [t["tid"] for t in topics]
         newest_tid = max(all_tids)
 
         for peer_id, _, last in subscribers:
-            # last_id из БД
             try:
                 last_id = int(last) if last else None
             except:
                 last_id = None
 
-            # Если first run → просто записать last_id
+            # первый запуск → просто выставляем последний ID
             if not last_id:
                 update_last(peer_id, url, str(newest_tid))
                 continue
 
-            # Новые темы
             new_topics = [t for t in topics if t["tid"] > last_id]
 
             if new_topics:
-                # Сначала старые → затем новые
                 for t in sorted(new_topics, key=lambda x: x["tid"]):
                     msg = (
                         "🆕 Новая тема в разделе!\n\n"
@@ -464,17 +459,12 @@ class ForumTracker:
                     except Exception as e:
                         warn(f"vk send error: {e}")
 
-                # обновляем last_id
-                try:
-                    update_last(peer_id, url, str(newest_tid))
-                except Exception as e:
-                    warn(f"update_last error: {e}")
+                update_last(peer_id, url, str(newest_tid))
 
         return  # END FORUM
 
-
     # ============================================================
-    # MEMBERS — список участников
+    # MEMBERS
     # ============================================================
     if typ == "members":
         soup = BeautifulSoup(html, "html.parser")
@@ -492,10 +482,9 @@ class ForumTracker:
         return
 
     # ============================================================
-    # UNKNOWN TYPE
+    # UNKNOWN
     # ============================================================
     debug(f"[process] unknown type for {url}: {typ}")
-
 
     # manual fetch posts — returns list (used by /checkfa)
     def manual_fetch_posts(self, url: str) -> List[Dict]:
