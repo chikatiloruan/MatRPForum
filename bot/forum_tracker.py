@@ -1,4 +1,19 @@
 # bot/forum_tracker.py
+"""
+Исправленная и улучшенная версия forum_tracker.py.
+Сохраняет весь функционал, который был у тебя — но убраны синтаксические ошибки,
+понятно организованы методы, добавлен fetch_latest_post_id, улучшен парсинг тем
+и сообщений, добавлен безопасный лог и отладочные хелперы.
+
+Важно: ожидает, что в проекте есть:
+ - bot/utils.py с функциями: normalize_url, detect_type, extract_thread_id,
+   extract_post_id_from_article, log_info, log_error
+ - bot/storage.py с list_all_tracks и update_last
+ - config.py (опционально) с FORUM_BASE, XF_USER, XF_SESSION, XF_TFA_TRUST, POLL_INTERVAL_SEC, XF_CSRF
+
+"""
+from __future__ import annotations
+
 import re
 import threading
 import time
@@ -39,23 +54,26 @@ except Exception:
 # ======================================================================
 #  Simple logging helpers
 # ======================================================================
+
 def debug(msg: str):
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
-        log_info(f"{msg}")
+        log_info(str(msg))
     except Exception:
         print(f"[{now}] [DEBUG] {msg}")
+
 
 def warn(msg: str):
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
-        log_error(f"{msg}")
+        log_error(str(msg))
     except Exception:
         print(f"[{now}] [WARNING] {msg}")
 
 # ======================================================================
 # COOKIE helpers and fetch
 # ======================================================================
+
 def build_cookies() -> dict:
     """Return cookies dict (for requests)."""
     return {
@@ -69,43 +87,42 @@ def build_cookies() -> dict:
 # ======================================================================
 #  Parsers: thread posts and forum topics
 # ======================================================================
-def parse_thread_posts(html: str, page_url: str):
-    """
-    Новый парсер постов MatRP (XenForo)
-    Работает с разметкой:
-    article.message-body.js-selectToQuote
-        div.bbWrapper ← здесь фактический текст поста
-    
-    + корректно извлекает:
-        • id поста
-        • автора
-        • дату
-        • текст БЕЗ подписи
-    """
 
+def parse_thread_posts(html: str, page_url: str) -> List[Dict]:
+    """
+    Парсер постов для XenForo-разметки MatRP.
+    Ищет article.message-body.* и извлекает ID, автора, дату и текст.
+    Поддерживает несколько вариантов контейнера текста: div.bbWrapper и
+    div.message-userContent.lbContainer.js-lbContainer и fallback на сам article.
+    Возвращает список постов в порядке появления на странице (от первого к последнему).
+    """
     soup = BeautifulSoup(html or "", "html.parser")
 
-    # Все посты по новому формату
-    posts = soup.select("article.message-body.js-selectToQuote")
-    out = []
+    # Найдём возможные посты — несколько селекторов на случай разных версий
+    posts_nodes = soup.select("article.message-body.js-selectToQuote")
+    if not posts_nodes:
+        # более общий поиск: article с data-post-id
+        posts_nodes = soup.select("article[data-post-id], article[id^='js-post-']")
 
-    for msg in posts:
+    out: List[Dict] = []
+    for msg in posts_nodes:
         try:
             # ID поста
-            pid = msg.get("data-lb-id") \
-               or msg.get("data-id") \
-               or msg.get("data-post-id") \
-               or ""
+            pid = (
+                msg.get("data-lb-id")
+                or msg.get("data-id")
+                or msg.get("data-post-id")
+                or ""
+            )
 
             if not pid:
-                # fallback на article id="js-post-123"
                 art = msg.find_parent("article")
                 if art:
                     pid = extract_post_id_from_article(str(art))
 
             pid = str(pid)
 
-            # Автор
+            # Автор: ищем ближайший элемент username
             user = (
                 msg.find_previous("a", class_="username")
                 or msg.find_previous("h4", class_="message-name")
@@ -115,21 +132,24 @@ def parse_thread_posts(html: str, page_url: str):
 
             # Дата
             t = msg.find_previous("time")
-            date = t.get("datetime") if t else (t.get_text(strip=True) if t else "")
+            date = t.get("datetime") if t and t.get("datetime") else (t.get_text(strip=True) if t else "")
 
-            # Текст поста — именно ТУТ правильный путь
-            body = msg.select_one("div.message-userContent.lbContainer.js-lbContainer")
+            # Текст: пробуем несколько вариантов
+            body = (
+                msg.select_one("div.bbWrapper")
+                or msg.select_one("div.message-userContent.lbContainer.js-lbContainer")
+                or msg.select_one("div.message-userContent")
+            )
             if body:
                 text = body.get_text("\n", strip=True)
             else:
-                # fallback
+                # fallback — весь узел
                 text = msg.get_text("\n", strip=True)
 
-            # Удаляем подписи/служебные блоки
-            text = re.sub(r'\n{2,}', '\n', text).strip()
+            # Нормализуем пустые строки
+            text = re.sub(r"\n{2,}", "\n", text).strip()
 
-            # Формируем ссылку
-            link = page_url + f"#post-{pid}"
+            link = page_url.rstrip("/") + f"#post-{pid}"
 
             out.append({
                 "id": pid,
@@ -138,7 +158,6 @@ def parse_thread_posts(html: str, page_url: str):
                 "text": text,
                 "link": link,
             })
-
         except Exception as e:
             warn(f"parse_thread_posts error: {e}")
             continue
@@ -146,30 +165,45 @@ def parse_thread_posts(html: str, page_url: str):
     return out
 
 
-def parse_forum_topics(html: str, base_url: str):
-    soup = BeautifulSoup(html, "html.parser")
+def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
+    """
+    Парсер списка тем на странице раздела. Возвращает список словарей с
+    tid, title, author, url, pinned.
 
-    topics = []
+    Работает с текущими классами MatRP/XenForo: .structItem.structItem--thread
+    и ищет js-threadListItem-<tid> в классах или извлекает tid из ссылки.
+    """
+    soup = BeautifulSoup(html or "", "html.parser")
 
-    # Ищем только настоящие темы
-    blocks = soup.select(".structItem.structItem--thread")
+    topics: List[Dict] = []
+
+    # Ищем только элементы-темы
+    blocks = soup.select(".structItem.structItem--thread, .structItem--thread")
+    if not blocks:
+        # fallback — все structItem
+        blocks = soup.select(".structItem")
+
+    seen = set()
 
     for it in blocks:
         try:
-            # tid из класса js-threadListItem-XXXXXX
+            # попробуем извлечь tid из класса js-threadListItem-XXXX
             tid = None
-            classes = it.get("class", [])
+            classes = it.get("class", []) or []
             for c in classes:
-                if c.startswith("js-threadListItem-"):
+                if isinstance(c, str) and c.startswith("js-threadListItem-"):
                     tid = c.replace("js-threadListItem-", "")
                     break
 
+            # fallback: intentar extraer из ссылки
             if not tid:
-                # fallback по ссылке
-                a = it.select_one(".structItem-title a[href]")
+                a = it.select_one(".structItem-title a[data-preview-url], .structItem-title a[href], a[href*='/threads/']")
                 if a:
-                    href = a.get("href")
-                    m = re.search(r"\.(\d+)/", href)
+                    href = a.get("href", "")
+                    # ищем ".<tid>/" или "/threads/...<tid>/"
+                    m = re.search(r"\.(\d+)(?:/|$)", href)
+                    if not m:
+                        m = re.search(r"threads/.+\.(\d+)(?:/|$)", href)
                     if m:
                         tid = m.group(1)
 
@@ -177,33 +211,37 @@ def parse_forum_topics(html: str, base_url: str):
                 continue
 
             tid = int(tid)
+            if tid in seen:
+                continue
+            seen.add(tid)
 
-            # Заголовок
-            a = it.select_one(".structItem-title a[data-preview-url], .structItem-title a[href]")
+            # Заголовок и ссылка
+            a = it.select_one(".structItem-title a[data-preview-url], .structItem-title a[href], a[href*='/threads/']")
             if not a:
                 continue
-
             title = a.get_text(strip=True)
+            href = a.get("href", "")
+            if href.startswith("http"):
+                url = href
+            else:
+                # базовый путь: base_url может быть like https://forum.matrp.ru/index.php?forums/xxx
+                base_root = base_url.split("/index.php")[0]
+                url = urljoin(base_root + "/", href.lstrip("/"))
 
-            # URL
-            href = a.get("href")
-            url = href if href.startswith("http") else base_url.split("/index.php")[0] + href
-
-            # Автор
-            auth_el = it.select_one(".username")
+            # автор
+            auth_el = it.select_one(".username, .structItem-parts .username")
             author = auth_el.get_text(strip=True) if auth_el else "Unknown"
 
-            # Закреплена ли тема
-            pinned = "structItem--pinned" in it.get("class", [])
+            # pinned detection
+            pinned = any((isinstance(c, str) and ("sticky" in c or "pinned" in c or "structItem--pinned" in c)) for c in classes)
 
             topics.append({
                 "tid": tid,
                 "title": title,
                 "author": author,
                 "url": url,
-                "pinned": pinned
+                "pinned": bool(pinned)
             })
-
         except Exception:
             continue
 
@@ -218,7 +256,10 @@ class ForumTracker:
     ForumTracker supports:
       - ForumTracker(vk)
       - ForumTracker(XF_USER, XF_TFA_TRUST, XF_SESSION, vk)
+
+    Все сетевые операции идут через self.session, чтобы держать куки.
     """
+
     def __init__(self, *args):
         self.interval = POLL
         self._running = False
@@ -238,13 +279,12 @@ class ForumTracker:
             # set cookies from config
             for k, v in build_cookies().items():
                 if v:
-                    # use domain None to let requests determine; some requests versions require domain - but leave as is
                     try:
                         self.session.cookies.set(k, v)
                     except Exception:
-                        # fallback specifying domain
                         try:
-                            self.session.cookies.set(k, v, domain=FORUM_BASE.replace("https://", "").replace("http://", "").split("/")[0])
+                            domain = FORUM_BASE.replace("https://", "").replace("http://", "").split("/")[0]
+                            self.session.cookies.set(k, v, domain=domain)
                         except Exception:
                             pass
 
@@ -288,20 +328,17 @@ class ForumTracker:
 
         # start keepalive thread
         threading.Thread(target=self._keepalive_loop, daemon=True).start()
-        
+
     # -----------------------------------------------------------------
-    # Утилиты доступа к сети через session (чтобы все запросы шли с
-    # одинаковыми cookies и заголовками)
+    # Утилиты доступа к сети через session
     # -----------------------------------------------------------------
     def fetch_html(self, url: str, timeout: int = 15) -> str:
         """
-        Загрузить HTML используя self.session (с куками, которые уже были
-        установлены в session). Возвращает текст страницы или пустую строку.
+        Загрузить HTML используя self.session (с куками).
         """
         if not url:
             return ""
 
-        # приводим url к нормальной форме (если нужно)
         try:
             url = normalize_url(url)
         except Exception:
@@ -309,22 +346,17 @@ class ForumTracker:
 
         debug(f"[FETCH] GET {url}")
         try:
-            # используем session.get (чтобы отправлять куки и держать сессию)
             r = self.session.get(url, timeout=timeout)
-            debug(f"[FETCH] {url} -> {r.status_code}")
-            if r.status_code == 200:
+            debug(f"[FETCH] {url} -> {getattr(r, 'status_code', 'ERR')}")
+            if getattr(r, "status_code", 0) == 200:
                 return r.text
-            warn(f"HTTP {r.status_code} for {url}")
+            warn(f"HTTP {getattr(r, 'status_code', 'ERR')} for {url}")
             return ""
         except Exception as e:
             warn(f"fetch_html error: {e}")
             return ""
 
     def get(self, url: str, **kwargs):
-        """
-        Прокси-метод для self.session.get — нужен, если где-то вызывают
-        self.tracker.get(...)
-        """
         try:
             return self.session.get(url, **kwargs)
         except Exception as e:
@@ -376,6 +408,9 @@ class ForumTracker:
                 warn(f"_process_url error for {url}: {e}")
                 traceback.print_exc()
 
+    # -----------------------------------------------------------------
+    # core processor
+    # -----------------------------------------------------------------
     def _process_url(self, url: str, subscribers):
         url = normalize_url(url)
         if not url.startswith(FORUM_BASE):
@@ -389,9 +424,9 @@ class ForumTracker:
 
         typ = detect_type(url)
 
-    # ============================================================
-    # THREAD — новые сообщения
-    # ============================================================
+        # ============================================================
+        # THREAD — новые сообщения
+        # ============================================================
         if typ == "thread":
             posts = parse_thread_posts(html, url)
             if not posts:
@@ -399,94 +434,103 @@ class ForumTracker:
 
             newest = posts[-1]
 
-        for peer_id, _, last in subscribers:
-            last_str = str(last) if last is not None else None
+            for peer_id, _, last in subscribers:
+                last_str = str(last) if last is not None else None
 
-            if last_str != str(newest["id"]):
-                msg = (
-                    f"📝 Новый пост\n"
-                    f"👤 {newest['author']}  •  {newest['date']}\n\n"
-                    f"{(newest['text'][:1500] + '...') if len(newest['text'])>1500 else newest['text']}\n\n"
-                    f"🔗 {newest['link']}"
-                )
-                try:
-                    self.vk.send(peer_id, msg)
-                except Exception as e:
-                    warn(f"vk send error: {e}")
-
-                try:
-                    update_last(peer_id, url, str(newest["id"]))
-                except Exception as e:
-                    warn(f"update_last error: {e}")
-
-        return  # END THREAD
-
-    # ============================================================
-    # FORUM — новые темы (включая pinned)
-    # ============================================================
-    if typ == "forum":
-        topics = parse_forum_topics(html, url)
-        if not topics:
-            warn(f"parse_forum_topics returned empty list for {url}")
-            return
-
-        all_tids = [t["tid"] for t in topics]
-        newest_tid = max(all_tids)
-
-        for peer_id, _, last in subscribers:
-            try:
-                last_id = int(last) if last else None
-            except:
-                last_id = None
-
-            # первый запуск → просто выставляем последний ID
-            if not last_id:
-                update_last(peer_id, url, str(newest_tid))
-                continue
-
-            new_topics = [t for t in topics if t["tid"] > last_id]
-
-            if new_topics:
-                for t in sorted(new_topics, key=lambda x: x["tid"]):
+                if last_str != str(newest["id"]):
                     msg = (
-                        "🆕 Новая тема в разделе!\n\n"
-                        f"📄 {t['title']}\n"
-                        f"👤 Автор: {t['author']}\n"
-                        f"🔗 {t['url']}"
+                        f"📝 Новый пост\n"
+                        f"👤 {newest['author']}  •  {newest['date']}\n\n"
+                        f"{(newest['text'][:1500] + '...') if len(newest['text'])>1500 else newest['text']}\n\n"
+                        f"🔗 {newest['link']}"
                     )
                     try:
                         self.vk.send(peer_id, msg)
                     except Exception as e:
                         warn(f"vk send error: {e}")
 
-                update_last(peer_id, url, str(newest_tid))
+                    try:
+                        update_last(peer_id, url, str(newest["id"]))
+                    except Exception as e:
+                        warn(f"update_last error: {e}")
 
-        return  # END FORUM
+            return  # END THREAD
 
-    # ============================================================
-    # MEMBERS
-    # ============================================================
-    if typ == "members":
-        soup = BeautifulSoup(html, "html.parser")
-        users = [
-            a.get_text(strip=True)
-            for a in soup.select(".username, .userTitle, .memberUsername a")[:20]
-        ]
-        if users:
-            msg = "👥 Участники (часть): " + ", ".join(users)
-            for peer_id, _, _ in subscribers:
+        # ============================================================
+        # FORUM — новые темы (включая pinned)
+        # ============================================================
+        if typ == "forum":
+            topics = parse_forum_topics(html, url)
+            if not topics:
+                warn(f"parse_forum_topics returned empty list for {url}")
+                return
+
+            # Собираем все tid — учитываем pinned и обычные
+            all_tids = [t["tid"] for t in topics]
+            if not all_tids:
+                return
+            newest_tid = max(all_tids)
+
+            for peer_id, _, last in subscribers:
                 try:
-                    self.vk.send(peer_id, msg)
-                except:
-                    pass
-        return
+                    last_id = int(last) if last else None
+                except Exception:
+                    last_id = None
 
-    # ============================================================
-    # UNKNOWN
-    # ============================================================
-    debug(f"[process] unknown type for {url}: {typ}")
+                # Если первый запуск — просто записываем
+                if not last_id:
+                    try:
+                        update_last(peer_id, url, str(newest_tid))
+                    except Exception as e:
+                        warn(f"update_last error: {e}")
+                    continue
 
+                # Новые темы: tid > last_id
+                new_topics = [t for t in topics if t["tid"] > last_id]
+
+                if new_topics:
+                    for t in sorted(new_topics, key=lambda x: x["tid"]):
+                        msg = (
+                            "🆕 Новая тема в разделе!\n\n"
+                            f"📄 {t['title']}\n"
+                            f"👤 Автор: {t['author']}\n"
+                            f"🔗 {t['url']}"
+                        )
+                        try:
+                            self.vk.send(peer_id, msg)
+                        except Exception as e:
+                            warn(f"vk send error: {e}")
+
+                    try:
+                        update_last(peer_id, url, str(newest_tid))
+                    except Exception as e:
+                        warn(f"update_last error: {e}")
+
+            return  # END FORUM
+
+        # ============================================================
+        # MEMBERS
+        # ============================================================
+        if typ == "members":
+            soup = BeautifulSoup(html, "html.parser")
+            users = [a.get_text(strip=True) for a in soup.select(".username, .userTitle, .memberUsername a")[:20]]
+            if users:
+                msg = "👥 Участники (часть): " + ", ".join(users)
+                for peer_id, _, _ in subscribers:
+                    try:
+                        self.vk.send(peer_id, msg)
+                    except Exception:
+                        pass
+            return
+
+        # ============================================================
+        # UNKNOWN
+        # ============================================================
+        debug(f"[process] unknown type for {url}: {typ}")
+
+    # -----------------------------------------------------------------
     # manual fetch posts — returns list (used by /checkfa)
+    # -----------------------------------------------------------------
     def manual_fetch_posts(self, url: str) -> List[Dict]:
         url = normalize_url(url)
         debug(f"[manual_fetch_posts] URL = {url}")
@@ -500,7 +544,9 @@ class ForumTracker:
         debug(f"[manual_fetch_posts] Parsed posts = {len(posts)}")
         return posts
 
+    # -----------------------------------------------------------------
     # debug what bot sees for reply form
+    # -----------------------------------------------------------------
     def debug_reply_form(self, url: str) -> str:
         url = normalize_url(url)
         html = self.fetch_html(url)
@@ -542,18 +588,31 @@ class ForumTracker:
             + html[-2000:]
         )
 
+    # -----------------------------------------------------------------
+    # fetch latest post id helper (used by command handler to seed last)
+    # -----------------------------------------------------------------
+    def fetch_latest_post_id(self, url: str) -> Optional[str]:
+        """Возвращает id самого свежего поста на thread-странице или None."""
+        try:
+            html = self.fetch_html(url)
+            if not html:
+                return None
+            posts = parse_thread_posts(html, url)
+            if not posts:
+                return None
+            return str(posts[-1]["id"]) if posts else None
+        except Exception:
+            return None
+
+    # -----------------------------------------------------------------
     # Improved post_message: tries normal POST then multipart fallback
+    # -----------------------------------------------------------------
     def post_message(self, url: str, message: str) -> Dict:
-        """
-        Robust post to XenForo thread (tries standard and multipart).
-        Returns dict with ok boolean and details.
-        """
         debug(f"[POST] Sending to: {url}")
         url = normalize_url(url)
         if not url.startswith(FORUM_BASE):
             return {"ok": False, "error": "URL outside FORUM_BASE"}
 
-        # brief cookie debug (don't print full tokens)
         try:
             debug(f"[POST] Cookies: xf_user={XF_USER[:6]}..., xf_session={XF_SESSION[:6]}..., xf_tfa={XF_TFA_TRUST[:6]}...")
         except Exception:
@@ -580,32 +639,25 @@ class ForumTracker:
             action = urljoin(FORUM_BASE, action.lstrip("/"))
         debug(f"[POST] Form action: {action}")
 
-        # collect hidden inputs
         payload: Dict[str, str] = {}
         for inp in form.select("input"):
             name = inp.get("name")
             if name:
                 payload[name] = inp.get("value", "") or ""
 
-        # ensure XenForo flags
         payload["_xfWithData"] = "1"
         payload["_xfResponseType"] = "json"
 
-        # token
         if not payload.get("_xfToken"):
             t = soup.find("input", {"name": "_xfToken"})
             if t:
                 payload["_xfToken"] = t.get("value", "")
 
-        debug(f"[POST] xfToken: {payload.get('_xfToken')}")
-
-        # _xfRequestUri often required
         try:
             payload["_xfRequestUri"] = url.replace(FORUM_BASE, "") or "/"
         except Exception:
             payload["_xfRequestUri"] = "/"
 
-        # find textarea
         textarea = (
             form.select_one("textarea[name='message_html']") or
             form.select_one("textarea[name='message']") or
@@ -619,7 +671,6 @@ class ForumTracker:
         textarea_name = textarea.get("name") or "message"
         html_msg = f"<p>{message}</p>"
 
-        # populate common fields — XenForo may expect both message and message_html
         payload[textarea_name] = html_msg
         payload["message"] = message
         payload["message_html"] = html_msg
@@ -631,7 +682,6 @@ class ForumTracker:
             "Accept": "*/*",
         }
 
-        # Try normal POST
         normal_error = None
         multipart_error = None
 
@@ -649,14 +699,12 @@ class ForumTracker:
             normal_error = str(e)
         warn(f"[POST] Normal failed: {normal_error}")
 
-        # Try multipart fallback
         debug("[POST] Trying multipart...")
         multipart = {
             textarea_name: (None, html_msg, "text/html"),
             "message": (None, message),
             "message_html": (None, html_msg)
         }
-        # include other hidden fields as simple form parts
         for k, v in payload.items():
             if k not in multipart:
                 multipart[k] = (None, v if v is not None else "")
@@ -681,7 +729,9 @@ class ForumTracker:
             "multipart_err": multipart_error
         }
 
+    # -----------------------------------------------------------------
     # check cookies: returns dict with status & logged_in flag
+    # -----------------------------------------------------------------
     def check_cookies(self) -> Dict:
         test_url = (FORUM_BASE.rstrip("/") + "/index.php") if FORUM_BASE else "/"
         headers = {
@@ -706,7 +756,9 @@ class ForumTracker:
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
+    # -----------------------------------------------------------------
     # keepalive thread (pings forum periodically)
+    # -----------------------------------------------------------------
     def _keepalive_loop(self):
         while self._keepalive_running:
             try:
@@ -715,17 +767,11 @@ class ForumTracker:
                 warn(f"keepalive error: {e}")
             time.sleep(max(60, self.interval * 3))
 
-    
+    # -----------------------------------------------------------------
+    # debug_forum — detailed diagnostic for forum pages
+    # -----------------------------------------------------------------
     def debug_forum(self, url: str) -> str:
-        """
-        Debug helper для разделов (forums).
-        Возвращает подробный отчёт — какие селекторы проверялись,
-        сколько элементов найдено, пример HTML первого элемента
-        и результат parse_forum_topics.
-        """
         out_lines = []
-
-        # normalize URL
         try:
             url = normalize_url(url)
         except Exception:
@@ -733,7 +779,6 @@ class ForumTracker:
 
         out_lines.append(f"🔍 DEBUG FORUM\nURL: {url}\n")
 
-        # fetch page
         try:
             html = self.fetch_html(url)
             if not html:
@@ -743,7 +788,6 @@ class ForumTracker:
 
         soup = BeautifulSoup(html, "html.parser")
 
-        # list of selectors to test
         selectors = [
             ".uix_stickyContainerOuter .structItem",
             ".uix_stickyContainerInner .structItem",
@@ -762,7 +806,6 @@ class ForumTracker:
             except Exception as e:
                 out_lines.append(f"  {sel} -> ERR ({e})")
 
-        # show first structItems
         try:
             all_items = soup.select(".structItem")
             out_lines.append(f"\nВсего .structItem: {len(all_items)}")
@@ -772,19 +815,16 @@ class ForumTracker:
         except Exception as e:
             out_lines.append(f"\nОшибка при выводе structItem: {e}")
 
-        # run parse_forum_topics
         try:
             parsed = parse_forum_topics(html, url)
             out_lines.append(f"\nparse_forum_topics -> найдено {len(parsed)} элементов:")
             for p in parsed[:10]:
                 out_lines.append(
-                    f"  tid={p.get('tid')} | {p.get('title')[:70]} | "
-                    f"{p.get('author')} | pinned={p.get('pinned')}"
+                    f"  tid={p.get('tid')} | {p.get('title')[:70]} | {p.get('author')} | pinned={p.get('pinned')}"
                 )
         except Exception as e:
             out_lines.append(f"\nparse_forum_topics error: {e}")
 
-        # show container area
         try:
             area = (
                 soup.select_one(".structItemContainer-group")
@@ -805,6 +845,7 @@ class ForumTracker:
         out_lines.append(" • Если parse пустой — не совпадают классы MatRP.")
 
         return "\n".join(out_lines)
+
 
 
 # ======================================================================
