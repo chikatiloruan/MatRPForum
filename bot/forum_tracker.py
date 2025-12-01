@@ -10,7 +10,6 @@
    extract_post_id_from_article, log_info, log_error
  - bot/storage.py с list_all_tracks и update_last
  - config.py (опционально) с FORUM_BASE, XF_USER, XF_SESSION, XF_TFA_TRUST, POLL_INTERVAL_SEC, XF_CSRF
-
 """
 from __future__ import annotations
 
@@ -195,7 +194,7 @@ def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
                     tid = c.replace("js-threadListItem-", "")
                     break
 
-            # fallback: intentar extraer из ссылки
+            # fallback: extract from link
             if not tid:
                 a = it.select_one(".structItem-title a[data-preview-url], .structItem-title a[href], a[href*='/threads/']")
                 if a:
@@ -415,36 +414,48 @@ class ForumTracker:
         url = normalize_url(url)
 
         if not url.startswith(FORUM_BASE):
-           return
+            debug(f"[process] skipping non-forum url: {url}")
+            return
 
         html = self.fetch_html(url)
         if not html:
+            warn(f"failed to fetch: {url}")
             return
 
         typ = detect_type(url)
 
-    # ============================================================
-    # THREAD — новые сообщения
-    # ============================================================
+        # ============================================================
+        # THREAD — новые сообщения
+        # ============================================================
         if typ == "thread":
             posts = parse_thread_posts(html, url)
             if not posts:
                 return
 
             newest = posts[-1]
-            newest_id = int(newest["id"])
+            try:
+                newest_id = int(newest["id"])
+            except Exception:
+                # если не получилось конвертировать — используем строковое сравнение как fallback
+                newest_id = newest["id"]
 
             for peer_id, _, last in subscribers:
-
-            # last_id всегда int
                 try:
-                    last_id = int(last)
-               except:
+                    last_id = int(last) if last is not None else 0
+                except Exception:
+                    # last может быть None или нечислом
                     last_id = 0
 
-                if newest_id > last_id:
-                # отправляем уведомление
-                   msg = (
+                send_msg = False
+                # если both numeric
+                if isinstance(newest_id, int) and isinstance(last_id, int):
+                    send_msg = newest_id > last_id
+                else:
+                    # fallback: сравнение строк
+                    send_msg = str(newest["id"]) != str(last)
+
+                if send_msg:
+                    msg = (
                         f"📝 Новый пост\n"
                         f"👤 {newest['author']}  •  {newest['date']}\n\n"
                         f"{(newest['text'][:1500] + '...') if len(newest['text'])>1500 else newest['text']}\n\n"
@@ -452,42 +463,57 @@ class ForumTracker:
                     )
                     try:
                         self.vk.send(peer_id, msg)
-                    except:
-                        pass
+                    except Exception as e:
+                        warn(f"vk send error (thread): {e}")
 
-                # обновляем last_id
                     try:
                         update_last(peer_id, url, str(newest_id))
-                    except:
-                        pass
+                    except Exception as e:
+                        warn(f"update_last error (thread): {e}")
 
             return
 
-    # ============================================================
-    # FORUM — новые темы (включая pinned)
-    # ============================================================
+        # ============================================================
+        # FORUM — новые темы (включая pinned)
+        # ============================================================
         if typ == "forum":
             topics = parse_forum_topics(html, url)
             if not topics:
+                # ничего не нашли
                 return
 
-        # список всех tid
-            tid_list = [int(t["tid"]) for t in topics]
+            # список всех tid
+            tid_list = []
+            for t in topics:
+                try:
+                    tid_list.append(int(t["tid"]))
+                except Exception:
+                    # если tid не конвертируется — игнорируем
+                    continue
+            if not tid_list:
+                return
             newest_tid = max(tid_list)
 
             for peer_id, _, last in subscribers:
- 
                 try:
-                    last_id = int(last)
-                except:
+                    last_id = int(last) if last is not None else 0
+                except Exception:
                     last_id = 0
 
-            # фильтруем новые темы
-                new_topics = [t for t in topics if int(t["tid"]) > last_id]
+                # фильтруем новые темы
+                new_topics = []
+                for t in topics:
+                    try:
+                        if int(t["tid"]) > last_id:
+                            new_topics.append(t)
+                    except Exception:
+                        # если не получилось конвертировать tid — сравнить строками
+                        if str(t.get("tid")) != str(last):
+                            new_topics.append(t)
 
                 if new_topics:
-                # порядок от старой к новой
-                    for t in sorted(new_topics, key=lambda x: int(x["tid"])):
+                    # порядок от старой к новой
+                    for t in sorted(new_topics, key=lambda x: int(x["tid"]) if str(x["tid"]).isdigit() else 0):
                         msg = (
                             "🆕 Новая тема!\n\n"
                             f"📄 {t['title']}\n"
@@ -496,21 +522,41 @@ class ForumTracker:
                         )
                         try:
                             self.vk.send(peer_id, msg)
-                        except:
-                            pass
+                        except Exception as e:
+                            warn(f"vk send error (forum): {e}")
 
-                # обновляем last_id
-                    update_last(peer_id, url, str(newest_tid))
+                    try:
+                        update_last(peer_id, url, str(newest_tid))
+                    except Exception as e:
+                        warn(f"update_last error (forum): {e}")
 
-         return
+            return
 
-    # ============================================================
-    # UNKNOWN
-    # ============================================================
-        print("[TRACK] Unknown type:", typ)
+        # ============================================================
+        # MEMBERS — список участников
+        # ============================================================
+        if typ == "members":
+            soup = BeautifulSoup(html, "html.parser")
+            users = [
+                a.get_text(strip=True)
+                for a in soup.select(".username, .userTitle, .memberUsername a")[:20]
+            ]
+            if users:
+                s = "👥 Участники (часть): " + ", ".join(users)
+                for peer_id, _, _ in subscribers:
+                    try:
+                        self.vk.send(peer_id, s)
+                    except Exception:
+                        pass
+            return
+
+        # ============================================================
+        # UNKNOWN
+        # ============================================================
+        debug(f"[process] unknown type for {url}: {typ}")
 
     # -----------------------------------------------------------------
-    # manual fetch posts — returns list (used by /checkfa)
+    # manual_fetch_posts — returns list (used by /checkfa)
     # -----------------------------------------------------------------
     def manual_fetch_posts(self, url: str) -> List[Dict]:
         url = normalize_url(url)
@@ -526,7 +572,7 @@ class ForumTracker:
         return posts
 
     # -----------------------------------------------------------------
-    # debug what bot sees for reply form
+    # debug_reply_form — diagnostic для формы ответа
     # -----------------------------------------------------------------
     def debug_reply_form(self, url: str) -> str:
         url = normalize_url(url)
@@ -570,7 +616,7 @@ class ForumTracker:
         )
 
     # -----------------------------------------------------------------
-    # fetch latest post id helper (used by command handler to seed last)
+    # fetch_latest_post_id helper (used by command handler to seed last)
     # -----------------------------------------------------------------
     def fetch_latest_post_id(self, url: str) -> Optional[str]:
         """Возвращает id самого свежего поста на thread-странице или None."""
@@ -826,7 +872,6 @@ class ForumTracker:
         out_lines.append(" • Если parse пустой — не совпадают классы MatRP.")
 
         return "\n".join(out_lines)
-
 
 
 # ======================================================================
