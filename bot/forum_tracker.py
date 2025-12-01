@@ -411,7 +411,7 @@ class ForumTracker:
     # -----------------------------------------------------------------
     # core processor
     # -----------------------------------------------------------------
-     def _process_url(self, url: str, subscribers):
+    def _process_url(self, url: str, subscribers):
         url = normalize_url(url)
 
         if not url.startswith(FORUM_BASE):
@@ -502,7 +502,7 @@ class ForumTracker:
                 # обновляем last_id
                     update_last(peer_id, url, str(newest_tid))
 
-            return
+         return
 
     # ============================================================
     # UNKNOWN
