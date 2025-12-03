@@ -198,9 +198,11 @@ class CommandHandler:
     # ---------------------------------------------------------
     #       ДЕТЕКТ КАТЕГОРИИ (forum vs thread)
     # ---------------------------------------------------------
-        if "/index.php?forums/" in url:
+        clean_url = url.split("&")[0]
+  
+        if "/index.php?forums/" in clean_url:
             typ = "forum"
-        elif "/index.php?threads/" in url:
+        elif "/index.php?threads/" in clean_url:
             typ = "thread"
         else:
             return self.vk.send(peer_id, "❌ Эта ссылка не является ни разделом, ни темой.")
@@ -228,11 +230,11 @@ class CommandHandler:
     # ---------------------------------------------------------
     #        СОХРАНЯЕМ В БАЗУ
     # ---------------------------------------------------------
-        add_track(peer_id, url, typ)
+        add_track(peer_id, clean_url, typ)
 
         if latest:
             try:
-                update_last(peer_id, url, str(latest))
+                update_last(peer_id, clean_url, str(latest))
             except:
                 pass
 
