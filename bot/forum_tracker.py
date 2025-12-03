@@ -166,43 +166,43 @@ def parse_thread_posts(html: str, page_url: str) -> List[Dict]:
 
 def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
     """
-    Парсер списка тем на странице раздела. Возвращает список словарей с
-    tid, title, author, url, pinned.
-
-    Работает с текущими классами MatRP/XenForo: .structItem.structItem--thread
-    и ищет js-threadListItem-<tid> в классах или извлекает tid из ссылки.
+    Парсер списка тем на странице раздела MatRP.
+    Возвращает: tid, title, author, url, pinned.
     """
-    soup = BeautifulSoup(html or "", "html.parser")
 
+    soup = BeautifulSoup(html or "", "html.parser")
     topics: List[Dict] = []
 
-    # Ищем только элементы-темы
+    # Ищем блоки тем
     blocks = soup.select(".structItem.structItem--thread, .structItem--thread")
     if not blocks:
-        # fallback — все structItem
         blocks = soup.select(".structItem")
 
     seen = set()
 
     for it in blocks:
         try:
-            # попробуем извлечь tid из класса js-threadListItem-XXXX
+            # -------------------------------------------------------
+            # 1) Извлекаем tid из класса js-threadListItem-XXXX
+            # -------------------------------------------------------
             tid = None
             classes = it.get("class", []) or []
+
             for c in classes:
                 if isinstance(c, str) and c.startswith("js-threadListItem-"):
                     tid = c.replace("js-threadListItem-", "")
                     break
 
-            # fallback: extract from link
+            # fallback по ссылке
             if not tid:
-                a = it.select_one(".structItem-title a[data-preview-url], .structItem-title a[href], a[href*='/threads/']")
+                a = it.select_one(".structItem-title a[data-preview-url], .structItem-title a[href]")
                 if a:
                     href = a.get("href", "")
-                    # ищем ".<tid>/" или "/threads/...<tid>/"
-                    m = re.search(r"\.(\d+)(?:/|$)", href)
+                    m = re.search(r"\.(\d+)/", href)  # slug.1234/
                     if not m:
-                        m = re.search(r"threads/.+\.(\d+)(?:/|$)", href)
+                        m = re.search(r"/threads/.+\.(\d+)/", href)
+                    if not m:
+                        m = re.search(r"/threads/(\d+)/", href)
                     if m:
                         tid = m.group(1)
 
@@ -214,37 +214,76 @@ def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
                 continue
             seen.add(tid)
 
-            # Заголовок и ссылка
+            # -------------------------------------------------------
+            # 2) Заголовок + исходная ссылка
+            # -------------------------------------------------------
             a = it.select_one(".structItem-title a[data-preview-url], .structItem-title a[href], a[href*='/threads/']")
             if not a:
                 continue
+
             title = a.get_text(strip=True)
             href = a.get("href", "")
-            if href.startswith("http"):
-                url = href
-            else:
-                # базовый путь: base_url может быть like https://forum.matrp.ru/index.php?forums/xxx
-                base_root = base_url.split("/index.php")[0]
-                url = urljoin(base_root + "/", href.lstrip("/"))
 
-            # автор
-            auth_el = it.select_one(".username, .structItem-parts .username")
+            # -------------------------------------------------------
+            # 3) Убираем prefix_id
+            # -------------------------------------------------------
+            clean_href = href.split("&prefix_id")[0].split("?prefix_id")[0]
+
+            # -------------------------------------------------------
+            # 4) Формируем абсолютный адрес
+            # -------------------------------------------------------
+            if clean_href.startswith("http"):
+                url = clean_href
+            else:
+                base_root = base_url.split("/index.php")[0]
+                url = urljoin(base_root + "/", clean_href.lstrip("/"))
+
+            # -------------------------------------------------------
+            # 5) Исправляем формат ссылок MatRP:
+            #     index.php?threads/...  →  threads/...
+            # -------------------------------------------------------
+            if "index.php?threads/" in url:
+                url = url.replace("index.php?", "")
+
+            # -------------------------------------------------------
+            # 6) Гарантированно нормализуем URL в формат threads/<slug>.<tid>/
+            # -------------------------------------------------------
+            m_full = re.search(r"/threads/([^/]+)\.(\d+)/?", url)
+            if m_full:
+                slug = m_full.group(1)
+                tid = int(m_full.group(2))
+                url = f"https://forum.matrp.ru/threads/{slug}.{tid}/"
+            else:
+                # fallback если slug не найден — всё равно формируем корректный URL
+                url = f"https://forum.matrp.ru/threads/topic.{tid}/"
+
+            # -------------------------------------------------------
+            # 7) Автор темы
+            # -------------------------------------------------------
+            auth_el = it.select_one(".username")
             author = auth_el.get_text(strip=True) if auth_el else "Unknown"
 
-            # pinned detection
-            pinned = any((isinstance(c, str) and ("sticky" in c or "pinned" in c or "structItem--pinned" in c)) for c in classes)
+            # -------------------------------------------------------
+            # pinned
+            # -------------------------------------------------------
+            pinned = any(
+                isinstance(c, str) and ("sticky" in c or "pinned" in c or "structItem--pinned" in c)
+                for c in classes
+            )
 
             topics.append({
                 "tid": tid,
                 "title": title,
                 "author": author,
                 "url": url,
-                "pinned": bool(pinned)
+                "pinned": pinned
             })
+
         except Exception:
             continue
 
     return topics
+
 
 
 # ======================================================================
