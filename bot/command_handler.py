@@ -300,10 +300,22 @@ class CommandHandler:
                 html = self.tracker.fetch_html(clean_url)
                 topics = parse_forum_topics(html, clean_url)
                 if topics:
-                    try:
-                        latest = max(int(t["tid"]) for t in topics)
-                    except Exception:
-                        latest = None
+                    # сортируем по дате → если нет date, сортируем по tid
+                    sortable = []
+                    for t in topics:
+                        dt = t.get("date") or ""
+                        tid = int(t.get("tid", 0))
+                        sortable.append((dt, tid, t))
+                    
+                    sortable.sort(key=lambda x: (x[0], x[1]))
+
+                    last_topic = sortable[-1][2]
+                    last_tid = sortable[-1][1]
+                    last_date = sortable[-1][0]
+
+                    # сохраняем tid;;date
+                    latest = f"{last_tid};;{last_date}"
+
         except Exception:
             latest = None
 
