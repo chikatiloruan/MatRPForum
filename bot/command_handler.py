@@ -162,6 +162,10 @@ class CommandHandler:
             if cmd == "/debugtopics":
                 return self.cmd_debugtopics(peer_id, parts)
 
+            if cmd == "/debugcheck":
+                return self.cmd_debugcheck(peer_id, parts)
+
+
             if cmd == "/untrack":
                 return self.cmd_untrack(peer_id, parts)
             if cmd == "/list":
@@ -785,6 +789,46 @@ class CommandHandler:
 
         # длинный текст → разбиваем
         self._send_long(peer_id, out)
+
+    def cmd_debugcheck(self, peer_id, parts):
+        """
+        /debugcheck <url> - показать что считает трекер новым (для этого чата).
+        """
+        if len(parts) < 2:
+            return self.vk.send(peer_id, "Использование: /debugcheck <url>")
+        url = normalize_url(parts[1])
+        if not url.startswith(FORUM_BASE):
+            return self.vk.send(peer_id, f"❌ Только {FORUM_BASE}")
+
+        try:
+            html = self.tracker.fetch_html(url)
+            if not html:
+                return self.vk.send(peer_id, "❌ Не удалось загрузить страницу (check cookies).")
+            topics = parse_forum_topics(html, url)
+            if not topics:
+                return self.vk.send(peer_id, "⚠️ Темы не найдены.")
+        # покажем первые 10 с created
+            lines = ["🔍 DEBUG TOPICS\n"]
+            for t in topics[:30]:
+                lines.append(
+                    f"TID: {t.get('tid')} | TITLE: {t.get('title')}\n"
+                    f"AUTHOR: {t.get('author')} | CREATED: {t.get('created')}\nURL: {t.get('url')}\n"
+                )
+            self._send_long(peer_id, "\n".join(lines))
+
+        # текущая запись last в БД для этого peer (если есть)
+            try:
+                rows = list_tracks(peer_id)
+                for u, typ, last in rows:
+                    if normalize_url(u) == normalize_url(url):
+                        self.vk.send(peer_id, f"Stored last for this peer: {last}")
+                        break
+            except Exception:
+                pass
+
+        except Exception as e:
+            return self.vk.send(peer_id, f"Ошибка debugcheck: {e}")
+
 
     # ---------------------------------------------------------
     #  УТИЛИТЫ
