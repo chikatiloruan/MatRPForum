@@ -89,24 +89,54 @@ def build_cookies() -> dict:
 
 def parse_thread_posts(html: str, page_url: str) -> List[Dict]:
     """
-    Парсер постов для XenForo-разметки MatRP.
-    Ищет article.message-body.* и извлекает ID, автора, дату и текст.
-    Поддерживает несколько вариантов контейнера текста: div.bbWrapper и
-    div.message-userContent.lbContainer.js-lbContainer и fallback на сам article.
-    Возвращает список постов в порядке появления на странице (от первого к последнему).
+    Улучшенный парсер постов с поддержкой ПОСЛЕДНЕЙ страницы темы.
     """
     soup = BeautifulSoup(html or "", "html.parser")
 
-    # Найдём возможные посты — несколько селекторов на случай разных версий
+    # -----------------------------------------------------------
+    # 1) Находим последнюю страницу
+    # -----------------------------------------------------------
+    last_page = 1
+    pages = soup.select(".pageNav-page")
+    for p in pages:
+        try:
+            num = int(p.get_text(strip=True))
+            last_page = max(last_page, num)
+        except:
+            pass
+
+    # -----------------------------------------------------------
+    # 2) Загружаем последнюю страницу, если она есть
+    # -----------------------------------------------------------
+    if last_page > 1:
+        if page_url.endswith("/"):
+            url_last = f"{page_url}page-{last_page}/"
+        else:
+            url_last = f"{page_url}/page-{last_page}/"
+
+        from .forum_tracker import ForumTracker  # чтобы использовать session
+        try:
+            tracker = ForumTracker
+        except:
+            pass
+
+        html = tracker.fetch_html(tracker, url_last)
+        if not html:
+            return []
+
+        soup = BeautifulSoup(html or "", "html.parser")
+
+    # -----------------------------------------------------------
+    # 3) Парсим посты (как у тебя)
+    # -----------------------------------------------------------
     posts_nodes = soup.select("article.message-body.js-selectToQuote")
     if not posts_nodes:
-        # более общий поиск: article с data-post-id
         posts_nodes = soup.select("article[data-post-id], article[id^='js-post-']")
 
     out: List[Dict] = []
+
     for msg in posts_nodes:
         try:
-            # ID поста
             pid = (
                 msg.get("data-lb-id")
                 or msg.get("data-id")
@@ -121,7 +151,6 @@ def parse_thread_posts(html: str, page_url: str) -> List[Dict]:
 
             pid = str(pid)
 
-            # Автор: ищем ближайший элемент username
             user = (
                 msg.find_previous("a", class_="username")
                 or msg.find_previous("h4", class_="message-name")
@@ -129,23 +158,16 @@ def parse_thread_posts(html: str, page_url: str) -> List[Dict]:
             )
             author = user.get_text(strip=True) if user else "Неизвестно"
 
-            # Дата
             t = msg.find_previous("time")
-            date = t.get("datetime") if t and t.get("datetime") else (t.get_text(strip=True) if t else "")
+            date = t.get("datetime") if t else ""
 
-            # Текст: пробуем несколько вариантов
             body = (
                 msg.select_one("div.bbWrapper")
                 or msg.select_one("div.message-userContent.lbContainer.js-lbContainer")
                 or msg.select_one("div.message-userContent")
             )
-            if body:
-                text = body.get_text("\n", strip=True)
-            else:
-                # fallback — весь узел
-                text = msg.get_text("\n", strip=True)
 
-            # Нормализуем пустые строки
+            text = body.get_text("\n", strip=True) if body else msg.get_text("\n", strip=True)
             text = re.sub(r"\n{2,}", "\n", text).strip()
 
             link = page_url.rstrip("/") + f"#post-{pid}"
@@ -157,6 +179,7 @@ def parse_thread_posts(html: str, page_url: str) -> List[Dict]:
                 "text": text,
                 "link": link,
             })
+
         except Exception as e:
             warn(f"parse_thread_posts error: {e}")
             continue
@@ -164,16 +187,14 @@ def parse_thread_posts(html: str, page_url: str) -> List[Dict]:
     return out
 
 
+
 def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
     """
-    Парсер списка тем на странице раздела MatRP.
-    Возвращает: tid, title, author, url, pinned.
+    Стабильный парсер списка тем MatRP.
     """
-
     soup = BeautifulSoup(html or "", "html.parser")
     topics: List[Dict] = []
 
-    # Ищем блоки тем
     blocks = soup.select(".structItem.structItem--thread, .structItem--thread")
     if not blocks:
         blocks = soup.select(".structItem")
@@ -182,27 +203,21 @@ def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
 
     for it in blocks:
         try:
-            # -------------------------------------------------------
-            # 1) Извлекаем tid из класса js-threadListItem-XXXX
-            # -------------------------------------------------------
             tid = None
             classes = it.get("class", []) or []
 
+            # 1) TID из js-threadListItem-XXXX
             for c in classes:
                 if isinstance(c, str) and c.startswith("js-threadListItem-"):
                     tid = c.replace("js-threadListItem-", "")
                     break
 
-            # fallback по ссылке
+            # 2) fallback через URL
             if not tid:
-                a = it.select_one(".structItem-title a[data-preview-url], .structItem-title a[href]")
+                a = it.select_one(".structItem-title a[href]")
                 if a:
                     href = a.get("href", "")
-                    m = re.search(r"\.(\d+)/", href)  # slug.1234/
-                    if not m:
-                        m = re.search(r"/threads/.+\.(\d+)/", href)
-                    if not m:
-                        m = re.search(r"/threads/(\d+)/", href)
+                    m = re.search(r"/threads/.+\.(\d+)/", href)
                     if m:
                         tid = m.group(1)
 
@@ -214,60 +229,39 @@ def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
                 continue
             seen.add(tid)
 
-            # -------------------------------------------------------
-            # 2) Заголовок + исходная ссылка
-            # -------------------------------------------------------
-            a = it.select_one(".structItem-title a[data-preview-url], .structItem-title a[href], a[href*='/threads/']")
+            # 3) Заголовок
+            a = it.select_one(".structItem-title a[href]")
             if not a:
                 continue
 
             title = a.get_text(strip=True)
             href = a.get("href", "")
 
-            # -------------------------------------------------------
-            # 3) Убираем prefix_id
-            # -------------------------------------------------------
-            clean_href = href.split("&prefix_id")[0].split("?prefix_id")[0]
+            # 4) Убираем prefix_id
+            href = href.split("&prefix_id")[0].split("?prefix_id")[0]
 
-            # -------------------------------------------------------
-            # 4) Формируем абсолютный адрес
-            # -------------------------------------------------------
-            if clean_href.startswith("http"):
-                url = clean_href
+            # 5) Формируем абсолютный URL
+            if href.startswith("http"):
+                url = href
             else:
-                base_root = base_url.split("/index.php")[0]
-                url = urljoin(base_root + "/", clean_href.lstrip("/"))
+                root = base_url.split("/index.php")[0]
+                url = urljoin(root + "/", href.lstrip("/"))
 
-            # -------------------------------------------------------
-            # 5) Исправляем формат ссылок MatRP:
-            #     index.php?threads/...  →  threads/...
-            # -------------------------------------------------------
-            if "index.php?threads/" in url:
-                url = url.replace("index.php?", "")
-
-            # -------------------------------------------------------
-            # 6) Гарантированно нормализуем URL в формат threads/<slug>.<tid>/
-            # -------------------------------------------------------
-            m_full = re.search(r"/threads/([^/]+)\.(\d+)/?", url)
-            if m_full:
-                slug = m_full.group(1)
-                tid = int(m_full.group(2))
+            # 6) Приводим URL к формату threads/slug.TID/
+            m = re.search(r"/threads/([^/]+)\.(\d+)/?", url)
+            if m:
+                slug = m.group(1)
+                tid = int(m.group(2))
                 url = f"https://forum.matrp.ru/threads/{slug}.{tid}/"
             else:
-                # fallback если slug не найден — всё равно формируем корректный URL
                 url = f"https://forum.matrp.ru/threads/topic.{tid}/"
 
-            # -------------------------------------------------------
-            # 7) Автор темы
-            # -------------------------------------------------------
+            # 7) Автор
             auth_el = it.select_one(".username")
             author = auth_el.get_text(strip=True) if auth_el else "Unknown"
 
-            # -------------------------------------------------------
-            # pinned
-            # -------------------------------------------------------
             pinned = any(
-                isinstance(c, str) and ("sticky" in c or "pinned" in c or "structItem--pinned" in c)
+                "pinned" in c or "sticky" in c or "structItem--pinned" in c
                 for c in classes
             )
 
@@ -283,6 +277,7 @@ def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
             continue
 
     return topics
+
 
 
 
