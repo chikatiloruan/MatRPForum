@@ -189,6 +189,7 @@ def parse_thread_posts(html: str, page_url: str, session=None) -> List[Dict]:
 def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
     """
     Стабильный парсер списка тем MatRP.
+    Теперь также возвращает created — ISO-время создания темы.
     """
     soup = BeautifulSoup(html or "", "html.parser")
     topics: List[Dict] = []
@@ -204,13 +205,17 @@ def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
             tid = None
             classes = it.get("class", []) or []
 
+            # ---------------------------------------------------------
             # 1) TID из js-threadListItem-XXXX
+            # ---------------------------------------------------------
             for c in classes:
                 if isinstance(c, str) and c.startswith("js-threadListItem-"):
                     tid = c.replace("js-threadListItem-", "")
                     break
 
+            # ---------------------------------------------------------
             # 2) fallback через URL
+            # ---------------------------------------------------------
             if not tid:
                 a = it.select_one(".structItem-title a[href]")
                 if a:
@@ -227,7 +232,9 @@ def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
                 continue
             seen.add(tid)
 
+            # ---------------------------------------------------------
             # 3) Заголовок
+            # ---------------------------------------------------------
             a = it.select_one(".structItem-title a[href]")
             if not a:
                 continue
@@ -235,17 +242,23 @@ def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
             title = a.get_text(strip=True)
             href = a.get("href", "")
 
+            # ---------------------------------------------------------
             # 4) Убираем prefix_id
+            # ---------------------------------------------------------
             href = href.split("&prefix_id")[0].split("?prefix_id")[0]
 
+            # ---------------------------------------------------------
             # 5) Формируем абсолютный URL
+            # ---------------------------------------------------------
             if href.startswith("http"):
                 url = href
             else:
                 root = base_url.split("/index.php")[0]
                 url = urljoin(root + "/", href.lstrip("/"))
 
+            # ---------------------------------------------------------
             # 6) Приводим URL к формату threads/slug.TID/
+            # ---------------------------------------------------------
             m = re.search(r"/threads/([^/]+)\.(\d+)/?", url)
             if m:
                 slug = m.group(1)
@@ -254,21 +267,36 @@ def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
             else:
                 url = f"https://forum.matrp.ru/threads/topic.{tid}/"
 
+            # ---------------------------------------------------------
             # 7) Автор
+            # ---------------------------------------------------------
             auth_el = it.select_one(".username")
             author = auth_el.get_text(strip=True) if auth_el else "Unknown"
 
+            # ---------------------------------------------------------
+            # 8) pinned
+            # ---------------------------------------------------------
             pinned = any(
                 "pinned" in c or "sticky" in c or "structItem--pinned" in c
                 for c in classes
             )
 
+            # ---------------------------------------------------------
+            # 9) ДАТА СОЗДАНИЯ ТЕМЫ (НОВОЕ!)
+            # ---------------------------------------------------------
+            time_el = it.select_one("time")
+            created = time_el.get("datetime", "") if time_el else ""
+
+            # ---------------------------------------------------------
+            # 10) Добавляем в список
+            # ---------------------------------------------------------
             topics.append({
                 "tid": tid,
                 "title": title,
                 "author": author,
                 "url": url,
-                "pinned": pinned
+                "pinned": pinned,
+                "created": created  # <── ВАЖНО!
             })
 
         except Exception:
