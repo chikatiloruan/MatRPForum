@@ -536,79 +536,83 @@ class ForumTracker:
         # ============================================================
         # FORUM — новые темы (включая pinned)
         # ============================================================
+         # ============================================================
+        # FORUM — новые темы (определение по дате + fallback по tid)
+        # ============================================================
         if typ == "forum":
+
             topics = parse_forum_topics(html, url)
             if not topics:
-                # ничего не нашли
                 return
 
-            # список всех tid
-            tid_list = []
+            # ======= формируем список с датами =======
+            sortable = []
             for t in topics:
-                try:
-                    tid_list.append(int(t["tid"]))
-                except Exception:
-                    # если tid не конвертируется — игнорируем
+                dt = t.get("date") or ""
+                tid = int(t.get("tid", 0))
+                sortable.append((dt, tid, t))
+
+            # сортируем по дате → если даты нет, такие в начале
+            sortable.sort(key=lambda x: (x[0], x[1]))
+
+            # последняя тема
+            last_topic = sortable[-1][2]
+            last_tid = sortable[-1][1]
+            last_date = sortable[-1][0]
+
+            for peer_id, _, last_saved in subscribers:
+
+                # last_saved → то, что хранится в БД
+                saved_tid = 0
+                saved_date = ""
+
+                if last_saved and ";;" in str(last_saved):
+                    # формат tid;;date
+                    parts = str(last_saved).split(";;", 1)
+                    try:    saved_tid = int(parts[0])
+                    except: saved_tid = 0
+                    saved_date = parts[1]
+                else:
+                    # старый формат — только tid
+                    try:    saved_tid = int(last_saved)
+                    except: saved_tid = 0
+
+                is_new = False
+
+                # ---- 1) если обе темы имеют дату → сравниваем дату ----
+                if last_topic.get("date") and saved_date:
+                    if last_topic["date"] > saved_date:
+                        is_new = True
+
+                # ---- 2) fallback — сравниваем tid ----
+                if not is_new:
+                    if last_tid > saved_tid:
+                        is_new = True
+
+                if not is_new:
                     continue
-            if not tid_list:
-                return
-            newest_tid = max(tid_list)
 
-            for peer_id, _, last in subscribers:
+                # отправляем новую тему
+                msg = (
+                    "🆕 Новая тема в разделе:\n\n"
+                    f"📄 {last_topic['title']}\n"
+                    f"👤 {last_topic['author']}\n"
+                    f"⏱ {last_topic.get('date','')}\n"
+                    f"🔗 {last_topic['url']}"
+                )
                 try:
-                    last_id = int(last) if last is not None else 0
-                except Exception:
-                    last_id = 0
+                    self.vk.send(peer_id, msg)
+                except Exception as e:
+                    warn(f"vk send error (forum): {e}")
 
-                # фильтруем новые темы
-                new_topics = []
-                for t in topics:
-                    try:
-                        if int(t["tid"]) > last_id:
-                            new_topics.append(t)
-                    except Exception:
-                        # если не получилось конвертировать tid — сравнить строками
-                        if str(t.get("tid")) != str(last):
-                            new_topics.append(t)
-
-                if new_topics:
-                    # порядок от старой к новой
-                    for t in sorted(new_topics, key=lambda x: int(x["tid"]) if str(x["tid"]).isdigit() else 0):
-                        msg = (
-                            "🆕 Новая тема!\n\n"
-                            f"📄 {t['title']}\n"
-                            f"👤 Автор: {t['author']}\n"
-                            f"🔗 {t['url']}"
-                        )
-                        try:
-                            self.vk.send(peer_id, msg)
-                        except Exception as e:
-                            warn(f"vk send error (forum): {e}")
-
-                    try:
-                        update_last(peer_id, url, str(newest_tid))
-                    except Exception as e:
-                        warn(f"update_last error (forum): {e}")
+                # сохраняем tid + дату
+                try:
+                    update_last(peer_id, url, f"{last_tid};;{last_topic.get('date','')}")
+                except Exception as e:
+                    warn(f"update_last error (forum): {e}")
 
             return
 
-        # ============================================================
-        # MEMBERS — список участников
-        # ============================================================
-        if typ == "members":
-            soup = BeautifulSoup(html, "html.parser")
-            users = [
-                a.get_text(strip=True)
-                for a in soup.select(".username, .userTitle, .memberUsername a")[:20]
-            ]
-            if users:
-                s = "👥 Участники (часть): " + ", ".join(users)
-                for peer_id, _, _ in subscribers:
-                    try:
-                        self.vk.send(peer_id, s)
-                    except Exception:
-                        pass
-            return
 
         # ============================================================
         # UNKNOWN
