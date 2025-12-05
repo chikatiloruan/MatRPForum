@@ -111,18 +111,16 @@ def list_templates(peer_id: int) -> List[str]:
 # ============================================================== #
 class CommandHandler:
     def __init__(self, vk):
-        """vk - экземпляр обёртки VK (с методами send, send_big, api, trigger_check)
-        tracker создаётся на основе ForumTracker(vk).
-        """
         self.vk = vk
+
         try:
+            # основной корректный запуск трекера
             self.tracker = ForumTracker(vk)
-        except Exception:
-            # если ничего не получилось — создаём без vk (некритично для некоторых команд)
-            try:
-                self.tracker = ForumTracker(None)
-            except Exception:
-                self.tracker = None
+        except Exception as e:
+            print(f"[TRACKER INIT ERROR] {e}")
+            # если не удалось — не создаём трекер вообще
+            self.tracker = None
+
         self._last_msg = None
 
     # ---------------------------------------------------------
