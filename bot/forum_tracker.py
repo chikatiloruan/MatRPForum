@@ -188,15 +188,15 @@ def parse_thread_posts(html: str, page_url: str, session=None) -> List[Dict]:
 
 def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
     """
-    Стабильный парсер списка тем MatRP.
-    Теперь также возвращает created — ISO-время создания темы.
+    Надёжный парсер тем MatRP. Возвращает список словарей с полями:
+      tid, title, author, url, pinned, created
     """
     soup = BeautifulSoup(html or "", "html.parser")
     topics: List[Dict] = []
 
-    blocks = soup.select(".structItem.structItem--thread, .structItem--thread")
+    blocks = soup.select(".structItem")
     if not blocks:
-        blocks = soup.select(".structItem")
+        return topics
 
     seen = set()
 
@@ -205,24 +205,21 @@ def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
             tid = None
             classes = it.get("class", []) or []
 
-            # ---------------------------------------------------------
-            # 1) TID из js-threadListItem-XXXX
-            # ---------------------------------------------------------
+            # TID из класса js-threadListItem-XXXXX
             for c in classes:
                 if isinstance(c, str) and c.startswith("js-threadListItem-"):
                     tid = c.replace("js-threadListItem-", "")
                     break
 
-            # ---------------------------------------------------------
-            # 2) fallback через URL
-            # ---------------------------------------------------------
-            if not tid:
-                a = it.select_one(".structItem-title a[href]")
-                if a:
-                    href = a.get("href", "")
-                    m = re.search(r"/threads/.+\.(\d+)/", href)
-                    if m:
-                        tid = m.group(1)
+            # fallback через ссылку в title блоке
+            title_a = it.select_one(".structItem-title a[data-preview-url], .structItem-title a[href]")
+            if not tid and title_a:
+                href_tmp = title_a.get("href", "")
+                m = re.search(r"\.(\d+)/?$", href_tmp)
+                if not m:
+                    m = re.search(r"/threads/[^/]+\.(\d+)/?", href_tmp)
+                if m:
+                    tid = m.group(1)
 
             if not tid:
                 continue
@@ -232,73 +229,55 @@ def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
                 continue
             seen.add(tid)
 
-            # ---------------------------------------------------------
-            # 3) Заголовок
-            # ---------------------------------------------------------
-            a = it.select_one(".structItem-title a[href]")
-            if not a:
+            # Заголовок: берем превью-ссылку (реальный заголовок), иначе labelLink
+            title_el = it.select_one(".structItem-title a[data-preview-url]") or \
+                       it.select_one(".structItem-title a.labelLink") or \
+                       it.select_one(".structItem-title a[href]")
+
+            if not title_el:
                 continue
 
-            title = a.get_text(strip=True)
-            href = a.get("href", "")
+            title = title_el.get_text(" ", strip=True)
+            href = title_el.get("href", "") or ""
 
-            # ---------------------------------------------------------
-            # 4) Убираем prefix_id
-            # ---------------------------------------------------------
+            # Убираем prefix_id
             href = href.split("&prefix_id")[0].split("?prefix_id")[0]
 
-            # ---------------------------------------------------------
-            # 5) Формируем абсолютный URL
-            # ---------------------------------------------------------
+            # Абсолютный URL
             if href.startswith("http"):
                 url = href
             else:
                 root = base_url.split("/index.php")[0]
                 url = urljoin(root + "/", href.lstrip("/"))
 
-            # ---------------------------------------------------------
-            # 6) Приводим URL к формату threads/slug.TID/
-            # ---------------------------------------------------------
-            m = re.search(r"/threads/([^/]+)\.(\d+)/?", url)
-            if m:
-                slug = m.group(1)
-                tid = int(m.group(2))
+            # Нормализуем в формат threads/<slug>.<tid>/
+            m_full = re.search(r"/threads/([^/]+)\.(\d+)/?", url)
+            if m_full:
+                slug = m_full.group(1)
+                tid = int(m_full.group(2))
                 url = f"https://forum.matrp.ru/threads/{slug}.{tid}/"
             else:
                 url = f"https://forum.matrp.ru/threads/topic.{tid}/"
 
-            # ---------------------------------------------------------
-            # 7) Автор
-            # ---------------------------------------------------------
-            auth_el = it.select_one(".username")
+            # Автор
+            auth_el = it.select_one(".structItem-minor .username, a.username")
             author = auth_el.get_text(strip=True) if auth_el else "Unknown"
 
-            # ---------------------------------------------------------
-            # 8) pinned
-            # ---------------------------------------------------------
-            pinned = any(
-                "pinned" in c or "sticky" in c or "structItem--pinned" in c
-                for c in classes
-            )
+            # pinned
+            pinned = any("pinned" in c or "sticky" in c or "structItem--pinned" in c for c in classes)
 
-            # ---------------------------------------------------------
-            # 9) ДАТА СОЗДАНИЯ ТЕМЫ (НОВОЕ!)
-            # ---------------------------------------------------------
+            # created: ищем <time> внутри structItem
             time_el = it.select_one("time")
-            created = time_el.get("datetime", "") if time_el else ""
+            created = time_el.get("datetime", "").strip() if time_el else ""
 
-            # ---------------------------------------------------------
-            # 10) Добавляем в список
-            # ---------------------------------------------------------
             topics.append({
                 "tid": tid,
                 "title": title,
                 "author": author,
                 "url": url,
                 "pinned": pinned,
-                "created": created  # <── ВАЖНО!
+                "created": created
             })
-
         except Exception:
             continue
 
