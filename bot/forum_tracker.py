@@ -462,7 +462,7 @@ class ForumTracker:
         # THREAD — новые сообщения
         # ============================================================
         if typ == "thread":
-            posts = parse_thread_posts(html, url)
+            posts = parse_thread_posts(html, url, self.session)
             if not posts:
                 return
 
@@ -601,7 +601,7 @@ class ForumTracker:
         html = self.fetch_html(url)
         if not html:
             raise RuntimeError("Failed to fetch page (check cookies)")
-        posts = parse_thread_posts(html, url)
+        posts = parse_thread_posts(html, url self.session)
         debug(f"[manual_fetch_posts] Parsed posts = {len(posts)}")
         return posts
 
@@ -658,7 +658,7 @@ class ForumTracker:
             html = self.fetch_html(url)
             if not html:
                 return None
-            posts = parse_thread_posts(html, url)
+            posts = parse_thread_posts(html, url, self.session)
             if not posts:
                 return None
             return str(posts[-1]["id"]) if posts else None
