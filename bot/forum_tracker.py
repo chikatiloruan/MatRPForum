@@ -627,7 +627,7 @@ class ForumTracker:
         html = self.fetch_html(url)
         if not html:
             raise RuntimeError("Failed to fetch page (check cookies)")
-        posts = parse_thread_posts(html, url self.session)
+        posts = parse_thread_posts(html, url, self.session)
         debug(f"[manual_fetch_posts] Parsed posts = {len(posts)}")
         return posts
 
