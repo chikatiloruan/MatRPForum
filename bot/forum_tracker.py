@@ -576,8 +576,10 @@ class ForumTracker:
 
                 # ---- 1) если обе темы имеют дату → сравниваем дату ----
                 if last_topic.get("created") and saved_date:
-                    if last_topic["created"] > saved_date:
+                    if saved_date != "0" and last_topic["created"] > saved_date:
                         is_new = True
+
+                      
 
                  # ---- если дата не сохранена (старый формат) → СЧИТАЕМ КАК НОВАЯ ----
                 if saved_date == "":
@@ -607,7 +609,8 @@ class ForumTracker:
 
                 # сохраняем tid + дату
                 try:
-                    update_last(peer_id, url, f"{last_tid};;{last_topic.get('created','')}")
+                    created = last_topic.get("created") or "0"
+                    update_last(peer_id, url, f"{last_tid};;{created}")
                 except Exception as e:
                     warn(f"update_last error (forum): {e}")
 
