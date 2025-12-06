@@ -1,192 +1,185 @@
 import sys
-import os
 import time
 import threading
+import os
+import importlib.util
+import getpass
 import requests
 from colorama import Fore, Style, init
+
+init(autoreset=True)
+
+# =====================================================
+# CONFIG MANAGER
+# =====================================================
+
+CONFIG_FILE = "config.py"
+
+FIXED_VALUES = {
+    "FORUM_BASE": "https://forum.matrp.ru"
+}
+
+REQUIRED_FIELDS = {
+    "VK_TOKEN": "VK Token бота",
+
+    "XF_USER": "Cookie XF_USER",
+    "XF_TFA_TRUST": "Cookie XF_TFA_TRUST",
+    "XF_SESSION": "Cookie XF_SESSION",
+    "XF_CSRF": "Cookie XF_CSRF",
+
+    "XF_LOGIN": "Логин форума",
+    "XF_PASS": "Пароль форума",
+
+    "ADMIN_USER": "Админ логин",
+    "ADMIN_PASS": "Админ пароль",
+
+    "DEBUG_PASS": "DEBUG пароль",
+
+    "POLL_INTERVAL_SEC": "Интервал проверки (сек.)",
+}
+
+
+def load_config():
+    spec = importlib.util.spec_from_file_location("config", CONFIG_FILE)
+    config = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config)
+    return config
+
+
+def create_config():
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        f.write("# ================================\n")
+        f.write("#  MATRP FORUM TRACKER CONFIG\n")
+        f.write("#  Created automatically\n")
+        f.write("# ================================\n\n")
+
+        for k, v in FIXED_VALUES.items():
+            f.write(f'{k} = "{v}"\n')
+
+        f.write("\n")
+
+        for k in REQUIRED_FIELDS:
+            if k == "POLL_INTERVAL_SEC":
+                f.write(f"{k} = 60\n")
+            else:
+                f.write(f'{k} = ""\n')
+
+    print(Fore.GREEN + "✅ Создан config.py")
+    print(Fore.YELLOW + "👉 Заполни данные и запусти бота снова\n")
+    sys.exit(0)
+
+
+def update_config(values: dict):
+    with open(CONFIG_FILE, "a", encoding="utf-8") as f:
+        f.write("\n# ===== Auto-added fields =====\n")
+        for k, v in values.items():
+            if isinstance(v, int):
+                f.write(f"{k} = {v}\n")
+            else:
+                f.write(f'{k} = "{v}"\n')
+
+
+def ensure_config():
+    if not os.path.exists(CONFIG_FILE):
+        create_config()
+
+    config = load_config()
+    to_add = {}
+
+    print(Fore.CYAN + "🔧 Проверка конфигурации...\n")
+
+    for key, desc in REQUIRED_FIELDS.items():
+        if not hasattr(config, key) or not getattr(config, key):
+            if key in ("XF_PASS", "ADMIN_PASS", "DEBUG_PASS"):
+                value = getpass.getpass(f"Введите {desc}: ")
+            elif key == "POLL_INTERVAL_SEC":
+                value = int(input(f"Введите {desc}: "))
+            else:
+                value = input(f"Введите {desc}: ")
+
+            to_add[key] = value
+
+    if to_add:
+        update_config(to_add)
+        print(Fore.GREEN + "\n✅ config.py обновлён")
+        print(Fore.YELLOW + "👉 Перезапусти бота\n")
+        sys.exit(0)
+
+    return config
+
+
+# =====================================================
+# LOAD CONFIG
+# =====================================================
+
+config = ensure_config()
 
 from config import (
     VK_TOKEN,
     XF_USER,
     XF_TFA_TRUST,
     XF_SESSION,
-    XF_CSRF
+    XF_CSRF,
+    FORUM_BASE,
+    POLL_INTERVAL_SEC
 )
 
 from bot.vk_bot import VKBot
 from bot.forum_tracker import ForumTracker, stay_online_loop
 
-init(autoreset=True)
-
-# ============================================================
+# =====================================================
 # INFO
-# ============================================================
+# =====================================================
 
 BOT_VERSION = "2.3.1"
 AUTHOR = "Создатель: 4ikatilo"
 AUTHOR_TG = "Telegram: @c4ikatillo"
 AUTHOR_VK = "VK: https://vk.com/ashot.nageroine"
 
-FORUM_BASE = "https://forum.matrp.ru"
-
-# ============================================================
-# UTILS
-# ============================================================
+# =====================================================
+# UI / VISUALS
+# =====================================================
 
 def clear_console():
     os.system("cls" if os.name == "nt" else "clear")
 
 
-# ============================================================
-# SKULL ASCII ANIMATION
-# ============================================================
+def loader():
+    frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    for i in range(20):
+        print(Fore.MAGENTA + f"\r💀 Загрузка системы {frames[i % len(frames)]}", end="")
+        time.sleep(0.1)
+    print()
 
-def skull_animation():
-    frames = [
-r"""
-        .
-       / \
-      |   |
-      |   |
-      |___|
-     /_____\
-""",
-r"""
-        .
-       / \
-      | ☠ |
-      |   |
-      |___|
-     /_____\
-""",
-r"""
-        .
-       / \
-      | ☠ |
-      | ☠ |
-      |___|
-     /_____\
-"""
-    ]
-
-    clear_console()
-    for _ in range(2):
-        for f in frames:
-            clear_console()
-            print(Fore.RED + f + Style.RESET_ALL)
-            print(Fore.MAGENTA + " MATRP FORUM TRACKER LOADING...\n" + Style.RESET_ALL)
-            time.sleep(0.45)
-
-
-# ============================================================
-# STATUS CHECKS
-# ============================================================
-
-def check_vk_status():
-    try:
-        r = requests.get("https://api.vk.com", timeout=5)
-        return r.status_code == 200
-    except:
-        return False
-
-
-def check_forum_status():
-    try:
-        r = requests.get(FORUM_BASE, timeout=5)
-        return r.status_code == 200
-    except:
-        return False
-
-
-# ============================================================
-# CONFIG CHECK
-# ============================================================
-
-def check_config():
-    missing = []
-
-    if not VK_TOKEN:     missing.append("VK_TOKEN")
-    if not XF_USER:      missing.append("XF_USER")
-    if not XF_TFA_TRUST: missing.append("XF_TFA_TRUST")
-    if not XF_SESSION:   missing.append("XF_SESSION")
-    if not XF_CSRF:      missing.append("XF_CSRF")
-
-    if missing:
-        clear_console()
-        print(Fore.RED + "❌ В config.py отсутствуют параметры:\n" + Style.RESET_ALL)
-        for m in missing:
-            print(Fore.YELLOW + f" → {m}" + Style.RESET_ALL)
-
-        print(Fore.CYAN + "\nЗаполни config.py и запусти бота снова.\n" + Style.RESET_ALL)
-        sys.exit(1)
-
-
-# ============================================================
-# LOADER
-# ============================================================
-
-def fake_loader():
-    skull_animation()
-
-    print(Fore.CYAN + "Инициализация системы...\n" + Style.RESET_ALL)
-    time.sleep(0.5)
-
-    steps = [
-        ("Проверка конфигурации", True),
-        ("Загрузка модулей", True),
-        ("Подключение VK API", check_vk_status()),
-        ("Подключение форума MatRP", check_forum_status()),
-        ("Инициализация Forum Tracker", True),
-        ("Запуск сервисов", True),
-    ]
-
-    for name, status in steps:
-        color = Fore.GREEN if status else Fore.RED
-        state = "ONLINE" if status else "OFFLINE"
-
-        print(f"{Fore.YELLOW}[...] {name}{Style.RESET_ALL}", end="")
-        time.sleep(0.5)
-        print(f" {color}{state}{Style.RESET_ALL}")
-        time.sleep(0.25)
-
-    time.sleep(1)
-
-
-# ============================================================
-# BANNER
-# ============================================================
 
 def banner():
-    print(Fore.CYAN + r"""
+    print(Fore.RED + r"""
  ███╗   ███╗ █████╗ ████████╗██████╗ ██████╗ 
  ████╗ ████║██╔══██╗╚══██╔══╝██╔══██╗██╔══██╗
  ██╔████╔██║███████║   ██║   ██████╔╝██████╔╝
  ██║╚██╔╝██║██╔══██║   ██║   ██╔═══╝ ██╔══██╗
  ██║ ╚═╝ ██║██║  ██║   ██║   ██║     ██║  ██║
  ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝  ╚═╝
-
-      MATRP FORUM TRACKER — VK EDITION
 """ + Style.RESET_ALL)
 
-    print(Fore.MAGENTA + "──────────────────────────────────────────────────────────" + Style.RESET_ALL)
-    print(Fore.GREEN  + f" 🔥 Версия: {BOT_VERSION}" + Style.RESET_ALL)
-    print(Fore.CYAN   + f" 👤 {AUTHOR}" + Style.RESET_ALL)
-    print(Fore.YELLOW + f" 💬 {AUTHOR_TG}" + Style.RESET_ALL)
-    print(Fore.BLUE   + f" 🌐 {AUTHOR_VK}" + Style.RESET_ALL)
-    print(Fore.MAGENTA + "──────────────────────────────────────────────────────────\n" + Style.RESET_ALL)
+    print(Fore.MAGENTA + "──────────────────────────────────────────────────────────")
+    print(Fore.GREEN   + f" 🔥 Версия: {BOT_VERSION}")
+    print(Fore.CYAN    + f" 👤 {AUTHOR}")
+    print(Fore.YELLOW  + f" 💬 {AUTHOR_TG}")
+    print(Fore.BLUE    + f" 🌐 {AUTHOR_VK}")
+    print(Fore.MAGENTA + "──────────────────────────────────────────────────────────")
+    print(Fore.GREEN   + " 🌐 VK STATUS: ONLINE")
+    print(Fore.GREEN   + " 🌐 FORUM STATUS: ONLINE")
+    print(Fore.CYAN    + "\n✅ Бот запущен. Ожидание событий...\n")
 
-    print(Fore.GREEN + "✅ VK Bot: ONLINE" + Style.RESET_ALL)
-    print(Fore.GREEN + "✅ Forum Tracker: ONLINE" + Style.RESET_ALL)
-    print(Fore.CYAN  + "\nБот работает. Ожидание событий...\n" + Style.RESET_ALL)
 
-
-# ============================================================
+# =====================================================
 # RUN
-# ============================================================
+# =====================================================
 
 def run():
-    check_config()
-    fake_loader()
+    clear_console()
+    loader()
     clear_console()
     banner()
 
@@ -204,7 +197,7 @@ def run():
     threading.Thread(target=stay_online_loop, daemon=True).start()
 
     while True:
-        time.sleep(3)
+        time.sleep(5)
 
 
 if __name__ == "__main__":
