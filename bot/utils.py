@@ -184,3 +184,53 @@ def truncate_text(s: str, limit: int = 1500) -> str:
     if len(s) <= limit:
         return s
     return s[:limit-3] + "..."
+
+def parse_profile(html: str) -> dict:
+    from bs4 import BeautifulSoup
+    import re
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    data = {
+        "username": "—",
+        "posts": "—",
+        "reactions": "—",
+        "points": "—",
+        "registered": "—",
+        "last_activity": "—"
+    }
+
+    name = soup.select_one(".memberHeader-name")
+    if name:
+        data["username"] = name.get_text(strip=True)
+
+    for dl in soup.select(".memberHeader-stats dl"):
+        dt = dl.select_one("dt")
+        dd = dl.select_one("dd")
+        if not dt or not dd:
+            continue
+
+        key = dt.get_text(strip=True).lower()
+        val = re.sub(r"[^\d]", "", dd.get_text(strip=True))
+
+        if "сообщ" in key:
+            data["posts"] = val
+        elif "реакц" in key:
+            data["reactions"] = val
+        elif "балл" in key:
+            data["points"] = val
+
+    reg = soup.find("dt", string="Регистрация")
+    if reg:
+        t = reg.find_next("time")
+        if t:
+            data["registered"] = t.get_text(strip=True)
+
+    act = soup.find("dt", string="Активность")
+    if act:
+        t = act.find_next("time")
+        if t:
+            data["last_activity"] = t.get_text(strip=True)
+
+    return data
+
