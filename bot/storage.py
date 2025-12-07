@@ -1,4 +1,4 @@
-# bot/storage.py
+
 import sqlite3
 import threading
 import os
@@ -8,14 +8,14 @@ DB = os.getenv("BOT_DB", "bot_data.db")
 _lock = threading.Lock()
 
 def _conn():
-    # ensure dir exists
+  
     return sqlite3.connect(DB, check_same_thread=False)
 
 def init_db():
     with _lock:
         conn = _conn()
         cur = conn.cursor()
-        # tracks: peer_id, url, type, last_id
+        
         cur.execute("""
         CREATE TABLE IF NOT EXISTS tracks (
             peer_id INTEGER NOT NULL,
@@ -47,7 +47,7 @@ def init_db():
         conn.commit()
         conn.close()
 
-# tracks
+
 def add_track(peer_id: int, url: str, type_: str):
     with _lock:
         conn = _conn()
@@ -88,7 +88,7 @@ def update_last(peer_id: int, url: str, last_id: str):
         conn.commit()
         conn.close()
 
-# warns
+
 def add_warn(peer_id: int, user_id: int):
     with _lock:
         conn = _conn()
@@ -151,7 +151,6 @@ def log_write(level: str, msg: str):
     except Exception:
         pass
 
-# storage.py (append)
 def init_templates_table(conn=None):
     conn_local = conn or _conn()
     cur = conn_local.cursor()
