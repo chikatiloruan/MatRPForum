@@ -16,7 +16,7 @@ from .storage import (
 )
 from .deepseek_ai import ask_ai
 from .permissions import is_admin
-from .utils import normalize_url, detect_type
+from .utils import normalize_url, detect_type, parse_profile
 from .forum_tracker import ForumTracker, parse_forum_topics
 from config import FORUM_BASE
 
