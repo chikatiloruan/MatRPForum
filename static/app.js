@@ -1,4 +1,4 @@
-// connect websocket for live logs
+
 (function(){
   const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws/logs";
   let sock;
