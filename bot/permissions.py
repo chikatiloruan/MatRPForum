@@ -2,10 +2,7 @@
 import os
 
 def is_admin(vk_api, peer_id: int, user_id: int) -> bool:
-    """
-    1) If ADMINS env var contains user ids -> they are admins
-    2) For chat: query messages.getConversationMembers and check is_admin/is_owner
-    """
+
     try:
         env = os.getenv("ADMINS", "")
         if env:
