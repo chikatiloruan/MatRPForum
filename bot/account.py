@@ -1,4 +1,4 @@
-# bot/account.py
+
 import re
 import time
 from typing import Optional, Dict
@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 import requests
 from .utils import normalize_url, log_info, log_error
 import datetime
-from .forum_tracker import build_cookies  # reuse cookie builder if needed
+from .forum_tracker import build_cookies  
 
 try:
     from config import FORUM_BASE, XF_LOGIN, XF_PASS
@@ -34,7 +34,6 @@ class Account:
             print(f"[ACCOUNT] {msg}")
 
     def login_if_needed(self, force: bool = False) -> bool:
-        # avoid frequent login
         if not force and self.logged and time.time() - self.last_login_ts < 60*30:
             return True
         try:
@@ -65,10 +64,10 @@ class Account:
         if token:
             payload["_xfToken"] = token
 
-        # Try posting to login endpoint
+       
         try:
             r = self.session.post(login_url, data=payload, timeout=15)
-            # After login, verify
+           
             verify = self.session.get(FORUM_BASE, timeout=15)
             html = verify.text or ""
             logged = ("logout" in html.lower()) or ("выйти" in html.lower()) or ('data-logged-in="true"' in html)
@@ -83,7 +82,7 @@ class Account:
             return False
 
     def ensure_session_cookies(self):
-        # Expose cookies dict in case other modules need it
+  
         return {c.name: c.value for c in self.session.cookies}
 
     def fetch_profile(self, profile_url_or_id: str) -> Dict:
@@ -104,17 +103,17 @@ class Account:
                 return {"error": f"HTTP {r.status_code}"}
             soup = BeautifulSoup(r.text or "", "html.parser")
             out["display_name"] = (soup.select_one(".p-body-header h1") or soup.select_one(".message-name") or soup.select_one(".avatar-name")).get_text(strip=True) if soup.select_one(".p-body-header h1") else ""
-            # basic stats
+          
             stats = {}
             for el in soup.select(".pairs.pairs--columns dd"):
-                # best-effort: collect any dd text
+             
                 try:
                     k = el.previous_sibling.previous_sibling.get_text(strip=True)
                     stats[k] = el.get_text(strip=True)
                 except Exception:
                     pass
             out["raw_stats"] = stats
-            # avatar
+            
             ava = soup.select_one(".p-memberHeader-avatar img")
             out["avatar"] = ava.get("src") if ava else ""
             return out
