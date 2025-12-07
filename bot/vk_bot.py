@@ -1,4 +1,4 @@
-# bot/vk_bot.py
+
 import os
 import threading
 import time
@@ -13,8 +13,8 @@ from .command_handler import CommandHandler
 from .storage import init_db
 from config import VK_TOKEN
 
-# size for splitting messages (VK allows ≈ 4096; use 3500 to be safe)
-VK_MSG_LIMIT = 3500
+
+VK_MSG_LIMIT = 5500
 
 class VKBot:
     def __init__(self):
@@ -42,7 +42,7 @@ class VKBot:
 
     def stop(self):
         self._running = False
-        # longpoll listener will exit at next exception/stop
+       
         print("VKBot stopped")
 
     def _longpoll_loop(self):
@@ -56,7 +56,7 @@ class VKBot:
                     text = msg.get("text", "") or ""
                     peer = msg["peer_id"]
                     from_id = msg.get("from_id") or 0
-                    # handle commands only when message starts with /
+                   
                     if text and text.startswith("/"):
                         try:
                             self.handler.handle(text, peer, from_id)
@@ -66,7 +66,7 @@ class VKBot:
             except Exception as e:
                 print("Longpoll error:", e)
                 traceback.print_exc()
-                # slight delay to avoid busy-looping on persistent errors
+           
                 time.sleep(1)
 
     def send(self, peer_id: int, text: str):
@@ -78,7 +78,7 @@ class VKBot:
     def send_big(self, peer_id: int, text: str):
         if not text:
             return
-        # split by paragraphs but cap size
+
         parts = []
         cur = ""
         for paragraph in text.split("\n\n"):
@@ -88,7 +88,7 @@ class VKBot:
                 if cur:
                     parts.append(cur.strip())
                 if len(paragraph) > VK_MSG_LIMIT:
-                    # split paragraph
+                
                     for i in range(0, len(paragraph), VK_MSG_LIMIT):
                         parts.append(paragraph[i:i+VK_MSG_LIMIT])
                     cur = ""
