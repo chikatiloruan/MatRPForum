@@ -14,9 +14,9 @@ def ask_ai(prompt: str, max_tokens: int = 512) -> str:
         r = requests.post(DEEPSEEK_API_URL, json=payload, headers=headers, timeout=20)
         r.raise_for_status()
         data = r.json()
-        # adapt to provider response
+
         if isinstance(data, dict):
-            # attempt several common shapes
+         
             if data.get("choices"):
                 return data["choices"][0].get("message", {}).get("content", "") or str(data)
             if data.get("result"):
