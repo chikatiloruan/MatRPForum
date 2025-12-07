@@ -1,7 +1,3 @@
-# =====================================================
-# MATRP FORUM TRACKER — MAIN
-# Автор: 4ikatilo
-# =====================================================
 
 import sys
 import time
@@ -13,16 +9,11 @@ import itertools
 from colorama import Fore, Style, init
 init(autoreset=True)
 
-# =====================================================
-# GLOBAL MODES
-# =====================================================
 
 RUN_MODE = "RELEASE"   # DEBUG | RELEASE
-STARTUP_STYLE = "ROCKET"  # ROCKET | CLASSIC
+STARTUP_STYLE = "ROCKET"  
 
-# =====================================================
-# CONFIG MANAGER
-# =====================================================
+
 
 CONFIG_FILE = "config.py"
 
@@ -98,9 +89,6 @@ def ensure_config():
 
 config = ensure_config()
 
-# =====================================================
-# IMPORTS FROM CONFIG
-# =====================================================
 
 from config import (
     VK_TOKEN,
@@ -113,15 +101,9 @@ from config import (
 from bot.vk_bot import VKBot
 from bot.forum_tracker import ForumTracker, stay_online_loop
 
-# =====================================================
-# INFO
-# =====================================================
 
 BOT_VERSION = "2.3.1"
 
-# =====================================================
-# UI — BANNER
-# =====================================================
 
 LOGO = r"""
  ███╗   ███╗ █████╗ ████████╗██████╗ ██████╗ 
@@ -141,8 +123,7 @@ def smooth_logo():
     print(Fore.GREEN + f"      VERSION {BOT_VERSION} | MODE {RUN_MODE}\n")
 
 
-# =====================================================
-# ROCKET STARTUP
+
 # =====================================================
 
 def rocket_startup():
@@ -172,9 +153,6 @@ def rocket_startup():
 
     smooth_logo()
 
-
-# =====================================================
-# REAL-TIME STATUS
 # =====================================================
 
 def status_loop(vk, tracker):
@@ -195,8 +173,7 @@ def status_loop(vk, tracker):
         time.sleep(1)
 
 
-# =====================================================
-# RUN
+
 # =====================================================
 
 def run():
