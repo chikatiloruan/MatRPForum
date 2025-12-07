@@ -565,12 +565,18 @@ class CommandHandler:
             if not info:
                 return self.vk.send(peer_id, "⚠️ Не удалось извлечь информацию о профиле.")
             lines = [
-                f"👤 {info.get('username','—')}",
-                f"📌 ID: {info.get('user_id','—')}",
-                f"🕘 Регистрация: {info.get('registered','—')}",
-                f"✉️ О себе: {info.get('about','—')[:800]}",
-                f"📝 Постов: {info.get('message_count','—')}"
+                f"👤 {info['username']}",
+                f"🆔 ID: {info['user_id']}",
+                f"📝 Сообщений: {info['message_count']}",
+                f"⭐ Реакций: {info['reactions']}",
+                f"🏆 Баллы: {info['points']}",
+                f"📅 Регистрация: {info['registered']}",
+                f"⏱ Активность: {info['last_activity']}",
             ]
+
+            if info["about"]:
+                lines.append(f"\n✉️ О себе:\n{info['about']}")
+
             self._send_long(peer_id, "\n".join(lines))
         except Exception as e:
             self.vk.send(peer_id, f"Ошибка profile: {e}")
@@ -581,64 +587,77 @@ class CommandHandler:
         """
         return self.cmd_profile(peer_id, parts)
 
-    def _parse_profile(self, url: str) -> Optional[Dict[str, str]]:
-        """
-        Простой парсер страницы профиля XenForo: пытается извлечь имя, id, registered, message_count, about.
-        Если профиль недоступен — возвращает None.
-        """
-        try:
-            html = self.tracker.fetch_html(url)
-            if not html:
-                return None
-            soup = __import__("bs4").BeautifulSoup(html, "html.parser")
+    def _parse_profile(self, url: str):
+        from bs4 import BeautifulSoup
+        import re
 
-      
-            uname = None
-            el = soup.select_one(".p-title-value .username, h1.p-title-value, .block-minor .username")
-            if el:
-                uname = el.get_text(strip=True)
-            else:
-                el = soup.select_one(".p-profile-header .username")
-                if el:
-                    uname = el.get_text(strip=True)
-
-         
-            user_id = None
-            m = re.search(r"/members/[^.]+.(\d+)", url)
-            if m:
-                user_id = m.group(1)
-            else:
-                a = soup.select_one("[data-user-id], a[data-user-id]")
-                if a:
-                    user_id = a.get("data-user-id")
-
-
-            registered = None
-            msg_count = None
-     
-            txt = soup.get_text(" ", strip=True)
-            mreg = re.search(r"Registered\s*[:\s]*([A-Za-z0-9,.\- ]+)", txt, re.IGNORECASE)
-            if mreg:
-                registered = mreg.group(1).strip()
-            mmsg = re.search(r"(Messages|Posts)\s*[:\s]*([0-9,]+)", txt, re.IGNORECASE)
-            if mmsg:
-                msg_count = mmsg.group(2).strip()
-
-     
-            about = ""
-            about_el = soup.select_one(".p-profile-about, .about, .userAbout, .user-blurb, .message-userContent")
-            if about_el:
-                about = about_el.get_text(" ", strip=True)
-
-            return {
-                "username": uname or "",
-                "user_id": user_id or "",
-                "registered": registered or "",
-                "message_count": msg_count or "",
-                "about": about or ""
-            }
-        except Exception:
+        html = self.tracker.fetch_html(url)
+        if not html:
             return None
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        data = {
+            "username": "—",
+            "user_id": "—",
+            "registered": "—",
+            "message_count": "—",
+            "reactions": "—",
+            "points": "—",
+            "last_activity": "—",
+            "about": ""
+        }
+
+    # 👤 Ник
+        name = soup.select_one(".memberHeader-name, h1.p-title-value")
+        if name:
+            data["username"] = name.get_text(strip=True)
+
+    # 🆔 ID
+        m = re.search(r"\.(\d+)/?$", url)
+        if m:
+            data["user_id"] = m.group(1)
+
+    # 📊 Статы (сообщения, реакции, баллы)
+        for dl in soup.select(".memberHeader-stats dl"):
+            dt = dl.find("dt")
+            dd = dl.find("dd")
+            if not dt or not dd:
+                continue
+
+            key = dt.get_text(strip=True).lower()
+            val = dd.get_text(strip=True).replace(",", "")
+
+            if "сообщ" in key:
+                data["message_count"] = val
+            elif "реакц" in key:
+                data["reactions"] = val
+            elif "балл" in key:
+                data["points"] = val
+
+    # 📅 Регистрация
+        reg = soup.find("dt", string="Регистрация")
+        if reg:
+            time_el = reg.find_next("time")
+            if time_el:
+                data["registered"] = time_el.get_text(strip=True)
+
+    # ⏱ Активность
+        act = soup.find("dt", string="Активность")
+        if act:
+            time_el = act.find_next("time")
+            if time_el:
+                data["last_activity"] = time_el.get_text(strip=True)
+
+    # ✉️ О себе
+        about = soup.select_one(
+            ".memberHeader-blurb, .p-profile-about, .userAbout"
+        )
+        if about:
+            data["about"] = about.get_text(" ", strip=True)[:800]
+
+        return data
+
 
   
     def cmd_kick(self, peer_id, parts):
