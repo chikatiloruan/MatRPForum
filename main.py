@@ -8,10 +8,17 @@ import time
 import threading
 import os
 import importlib.util
+import itertools
 
 from colorama import Fore, Style, init
-
 init(autoreset=True)
+
+# =====================================================
+# GLOBAL MODES
+# =====================================================
+
+RUN_MODE = "RELEASE"   # DEBUG | RELEASE
+STARTUP_STYLE = "ROCKET"  # ROCKET | CLASSIC
 
 # =====================================================
 # CONFIG MANAGER
@@ -68,7 +75,6 @@ def ensure_config():
 
     for key, desc in REQUIRED_FIELDS.items():
         val = getattr(config, key, "")
-
         if not val:
             value = input(Fore.YELLOW + f"{desc}: ")
             setattr(config, key, int(value) if key == "POLL_INTERVAL_SEC" else value)
@@ -85,7 +91,7 @@ def ensure_config():
                 else:
                     f.write(f'{key} = "{val}"\n')
 
-        print(Fore.GREEN + "\n✅ Конфигурация сохранена!\n")
+        print(Fore.GREEN + "\n✅ Конфигурация сохранена. Перезапуск НЕ требуется.\n")
 
     return config
 
@@ -101,8 +107,7 @@ from config import (
     XF_USER,
     XF_TFA_TRUST,
     XF_SESSION,
-    XF_CSRF,
-    POLL_INTERVAL_SEC
+    XF_CSRF
 )
 
 from bot.vk_bot import VKBot
@@ -115,48 +120,79 @@ from bot.forum_tracker import ForumTracker, stay_online_loop
 BOT_VERSION = "2.3.1"
 
 # =====================================================
-# UI
+# UI — BANNER
 # =====================================================
 
-def banner():
-    print(Fore.CYAN + r"""
+LOGO = r"""
  ███╗   ███╗ █████╗ ████████╗██████╗ ██████╗ 
  ████╗ ████║██╔══██╗╚══██╔══╝██╔══██╗██╔══██╗
  ██╔████╔██║███████║   ██║   ██████╔╝██████╔╝
  ██║╚██╔╝██║██╔══██║   ██║   ██╔═══╝ ██╔══██╗
  ██║ ╚═╝ ██║██║  ██║   ██║   ██║     ██║  ██║
  ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝  ╚═╝
+"""
 
-      MATRP FORUM TRACKER — VK EDITION
-""" + Style.RESET_ALL)
-
-    print(Fore.MAGENTA + "──────────────────────────────────────────────────────────")
-    print(Fore.GREEN   + f" 🔥 Версия: {BOT_VERSION}")
-    print(Fore.CYAN    + " 👤 Создатель: 4ikatilo")
-    print(Fore.YELLOW  + " 💬 Telegram: @c4ikatillo")
-    print(Fore.BLUE    + " 🌐 VK: vk.com/ashot.nageroine")
-    print(Fore.MAGENTA + "──────────────────────────────────────────────────────────\n")
+def smooth_logo():
+    os.system("cls" if os.name == "nt" else "clear")
+    for line in LOGO.splitlines():
+        print(Fore.CYAN + line)
+        time.sleep(0.06)
+    print(Fore.MAGENTA + "\n      MATRP FORUM TRACKER — VK EDITION")
+    print(Fore.GREEN + f"      VERSION {BOT_VERSION} | MODE {RUN_MODE}\n")
 
 
-def startup_animation():
-    steps = [
-        "🔐 Авторизация VK",
-        "🍪 Проверка cookies форума",
-        "📡 Подключение к MatRP",
-        "🧠 Инициализация трекеров",
-        "🚀 Запуск сервисов"
+# =====================================================
+# ROCKET STARTUP
+# =====================================================
+
+def rocket_startup():
+    os.system("cls" if os.name == "nt" else "clear")
+
+    for i in range(5, 0, -1):
+        print(Fore.YELLOW + f"T-{i}")
+        time.sleep(0.5)
+
+    sequence = [
+        "Fuel system",
+        "Navigation core",
+        "Forum session",
+        "VK uplink",
+        "Tracker threads"
     ]
 
-    for s in steps:
-        print(Fore.CYAN + s + " ...", end="")
-        time.sleep(0.7)
+    for s in sequence:
+        print(Fore.CYAN + f"{s:<20}", end="")
+        time.sleep(0.5)
         print(Fore.GREEN + " OK")
 
-    print(Fore.RED + r"""
-      ☠ VK / Forum Status ☠
-      ████████████████████
-          ONLINE
-    """)
+    for h in range(6):
+        print("\n" * 1 + " " * (10 - h) + Fore.RED + "🚀")
+        time.sleep(0.15)
+        os.system("cls" if os.name == "nt" else "clear")
+
+    smooth_logo()
+
+
+# =====================================================
+# REAL-TIME STATUS
+# =====================================================
+
+def status_loop(vk, tracker):
+    spinner = itertools.cycle(["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"])
+    while True:
+        icon = next(spinner)
+        vk_s = "ONLINE" if vk.is_alive else "OFFLINE"
+        forum_s = "ONLINE" if tracker._running else "OFFLINE"
+
+        line = (
+            Fore.CYAN + f"[ {icon} STATUS ] "
+            + Fore.GREEN + f"VK: {vk_s} "
+            + Fore.YELLOW + f"| FORUM: {forum_s} "
+            + Fore.MAGENTA + f"| MODE: {RUN_MODE}"
+        )
+
+        print("\r" + line + " " * 10, end="", flush=True)
+        time.sleep(1)
 
 
 # =====================================================
@@ -164,13 +200,15 @@ def startup_animation():
 # =====================================================
 
 def run():
-    banner()
-    startup_animation()
+    if STARTUP_STYLE == "ROCKET":
+        rocket_startup()
+    else:
+        smooth_logo()
 
-    print(Fore.CYAN + "\n[INIT] VK Bot...")
+    if RUN_MODE == "DEBUG":
+        print(Fore.YELLOW + "[DEBUG MODE ENABLED]\n")
+
     vk = VKBot()
-
-    print(Fore.CYAN + "[INIT] Forum Tracker...")
     tracker = ForumTracker(
         XF_USER,
         XF_TFA_TRUST,
@@ -178,15 +216,13 @@ def run():
         vk
     )
 
-    print(Fore.GREEN + "\n✅ Бот успешно запущен и работает!\n")
-
     vk.start()
     tracker.start()
-
     threading.Thread(target=stay_online_loop, daemon=True).start()
+    threading.Thread(target=status_loop, args=(vk, tracker), daemon=True).start()
 
     while True:
-        time.sleep(3)
+        time.sleep(5)
 
 
 if __name__ == "__main__":
