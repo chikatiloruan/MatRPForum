@@ -1,4 +1,4 @@
-# bot/permissions.py
+
 import os
 
 def is_admin(vk_api, peer_id: int, user_id: int) -> bool:
