@@ -1,16 +1,4 @@
-# bot/forum_tracker.py
-"""
-Исправленная и улучшенная версия forum_tracker.py.
-Сохраняет весь функционал, который был у тебя — но убраны синтаксические ошибки,
-понятно организованы методы, добавлен fetch_latest_post_id, улучшен парсинг тем
-и сообщений, добавлен безопасный лог и отладочные хелперы.
 
-Важно: ожидает, что в проекте есть:
- - bot/utils.py с функциями: normalize_url, detect_type, extract_thread_id,
-   extract_post_id_from_article, log_info, log_error
- - bot/storage.py с list_all_tracks и update_last
- - config.py (опционально) с FORUM_BASE, XF_USER, XF_SESSION, XF_TFA_TRUST, POLL_INTERVAL_SEC, XF_CSRF
-"""
 from __future__ import annotations
 
 import re
@@ -29,9 +17,7 @@ from .storage import list_all_tracks, update_last
 import traceback
 import datetime
 
-# ======================================================================
-#   CONFIG / DEFAULTS
-# ======================================================================
+
 try:
     from config import XF_USER, XF_SESSION, XF_TFA_TRUST, FORUM_BASE, POLL_INTERVAL_SEC, XF_CSRF
 except Exception:
@@ -50,9 +36,6 @@ try:
 except Exception:
     POLL = DEFAULT_POLL
 
-# ======================================================================
-#  Simple logging helpers
-# ======================================================================
 
 def debug(msg: str):
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -69,9 +52,7 @@ def warn(msg: str):
     except Exception:
         print(f"[{now}] [WARNING] {msg}")
 
-# ======================================================================
-# COOKIE helpers and fetch
-# ======================================================================
+
 
 def build_cookies() -> dict:
     """Return cookies dict (for requests)."""
@@ -83,9 +64,7 @@ def build_cookies() -> dict:
     }
 
 
-# ======================================================================
-#  Parsers: thread posts and forum topics
-# ======================================================================
+
 
 def parse_thread_posts(html: str, page_url: str, session=None) -> List[Dict]:
     """
@@ -93,9 +72,7 @@ def parse_thread_posts(html: str, page_url: str, session=None) -> List[Dict]:
     """
     soup = BeautifulSoup(html or "", "html.parser")
 
-    # -----------------------------------------------------------
-    # 1) Находим последнюю страницу
-    # -----------------------------------------------------------
+ 
     last_page = 1
     pages = soup.select(".pageNav-page")
     for p in pages:
@@ -105,10 +82,7 @@ def parse_thread_posts(html: str, page_url: str, session=None) -> List[Dict]:
         except:
             pass
 
-    # -----------------------------------------------------------
-    # 2) Загружаем последнюю страницу, если она есть
-    # -----------------------------------------------------------
-    # Если есть последняя страница и передан session — грузим её
+    
     if last_page > 1 and session:
         if page_url.endswith("/"):
             url_last = f"{page_url}page-{last_page}/"
@@ -124,9 +98,7 @@ def parse_thread_posts(html: str, page_url: str, session=None) -> List[Dict]:
             warn(f"Error loading last page: {e}")
 
 
-    # -----------------------------------------------------------
-    # 3) Парсим посты (как у тебя)
-    # -----------------------------------------------------------
+  
     posts_nodes = soup.select("article.message-body.js-selectToQuote")
     if not posts_nodes:
         posts_nodes = soup.select("article[data-post-id], article[id^='js-post-']")
@@ -259,14 +231,14 @@ def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
             else:
                 url = f"https://forum.matrp.ru/threads/topic.{tid}/"
 
-            # Автор
+         
             auth_el = it.select_one(".structItem-minor .username, a.username")
             author = auth_el.get_text(strip=True) if auth_el else "Unknown"
 
-            # pinned
+          
             pinned = any("pinned" in c or "sticky" in c or "structItem--pinned" in c for c in classes)
 
-            # created: ищем <time> внутри structItem
+            
             time_el = it.select_one("time")
             created = time_el.get("datetime", "").strip() if time_el else ""
 
@@ -286,17 +258,9 @@ def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
 
 
 
-# ======================================================================
-#  ForumTracker class
-# ======================================================================
-class ForumTracker:
-    """
-    ForumTracker supports:
-      - ForumTracker(vk)
-      - ForumTracker(XF_USER, XF_TFA_TRUST, XF_SESSION, vk)
 
-    Все сетевые операции идут через self.session, чтобы держать куки.
-    """
+class ForumTracker:
+   
 
     def __init__(self, *args):
         self.interval = POLL
@@ -311,10 +275,10 @@ class ForumTracker:
             "Referer": FORUM_BASE
         })
 
-        # signature 1: ForumTracker(vk)
+     
         if len(args) == 1:
             self.vk = args[0]
-            # set cookies from config
+     
             for k, v in build_cookies().items():
                 if v:
                     try:
@@ -326,14 +290,14 @@ class ForumTracker:
                         except Exception:
                             pass
 
-        # signature 2: ForumTracker(XF_USER, XF_TFA_TRUST, XF_SESSION, vk)
+
         elif len(args) >= 4:
             xf_user, xf_tfa_trust, xf_session, vk = args[:4]
             self.vk = vk
             globals()["XF_USER"] = xf_user
             globals()["XF_TFA_TRUST"] = xf_tfa_trust
             globals()["XF_SESSION"] = xf_session
-            # set cookies with proper domain
+         
             domain = ""
             try:
                 domain = FORUM_BASE.replace("https://", "").replace("http://", "").split("/")[0]
@@ -357,14 +321,14 @@ class ForumTracker:
         else:
             raise TypeError("ForumTracker expected (vk) or (XF_USER, XF_TFA_TRUST, XF_SESSION, vk)")
 
-        # register trigger
+    
         if hasattr(self.vk, "set_trigger"):
             try:
                 self.vk.set_trigger(self.force_check)
             except Exception:
                 pass
 
-        # start keepalive thread
+    
         threading.Thread(target=self._keepalive_loop, daemon=True).start()
 
     # -----------------------------------------------------------------
@@ -446,9 +410,7 @@ class ForumTracker:
                 warn(f"_process_url error for {url}: {e}")
                 traceback.print_exc()
 
-    # -----------------------------------------------------------------
-    # core processor
-    # -----------------------------------------------------------------
+
     def _process_url(self, url: str, subscribers):
         url = normalize_url(url)
 
@@ -463,9 +425,7 @@ class ForumTracker:
 
         typ = detect_type(url)
 
-        # ============================================================
-        # THREAD — новые сообщения
-        # ============================================================
+        
         if typ == "thread":
             posts = parse_thread_posts(html, url, self.session)
             if not posts:
@@ -475,22 +435,22 @@ class ForumTracker:
             try:
                 newest_id = int(newest["id"])
             except Exception:
-                # если не получилось конвертировать — используем строковое сравнение как fallback
+             
                 newest_id = newest["id"]
 
             for peer_id, _, last in subscribers:
                 try:
                     last_id = int(last) if last is not None else 0
                 except Exception:
-                    # last может быть None или нечислом
+                
                     last_id = 0
 
                 send_msg = False
-                # если both numeric
+         
                 if isinstance(newest_id, int) and isinstance(last_id, int):
                     send_msg = newest_id > last_id
                 else:
-                    # fallback: сравнение строк
+           
                     send_msg = str(newest["id"]) != str(last)
 
                 if send_msg:
@@ -518,7 +478,7 @@ class ForumTracker:
             if not topics:
                 return
 
-    # Формируем sortable: (created, tid, topic)
+
             sortable = []
             for t in topics:
                 created = t.get("created") or ""
@@ -528,10 +488,10 @@ class ForumTracker:
                     tid_i = 0
                 sortable.append((created, tid_i, t))
 
-    # Сортируем по created (строка ISO) и затем по tid
+
                 sortable.sort(key=lambda x: (x[0] or "", x[1]))
 
-    # берем последнюю (самую свежую)
+  
                 last_created, last_tid, last_topic = sortable[-1][0], sortable[-1][1], sortable[-1][2]
 
                 for peer_id, _, last_saved in subscribers:
@@ -553,16 +513,16 @@ class ForumTracker:
 
                     is_new = False
 
-        # 1) если есть даты у обеих — сравниваем
+
                     if last_created and saved_date:
                         try:
-                # сравнение ISO-строк корректно работает если формат ISO (как у time@datetime)
+       
                             if last_created > saved_date:
                                 is_new = True
                         except Exception:
                             pass
 
-        # 2) fallback — сравниваем tid
+
                     if not is_new:
                         if last_tid > saved_tid:
                             is_new = True
@@ -570,7 +530,7 @@ class ForumTracker:
                     if not is_new:
                         continue
 
-        # отправляем уведомление
+  
                     msg = (
                         "🆕 Новая тема в разделе:\n\n"
                         f"📄 {last_topic.get('title')}\n"
@@ -583,23 +543,16 @@ class ForumTracker:
                     except Exception as e:
                         warn(f"vk send error (forum): {e}")
 
-        # сохраняем tid;;created
+      
                     try:
                         update_last(peer_id, url, f"{last_tid};;{last_created}")
                     except Exception as e:
                         warn(f"update_last error (forum): {e}")
 
                 return
-
-
-        # ============================================================
-        # UNKNOWN
-        # ============================================================
         debug(f"[process] unknown type for {url}: {typ}")
 
-    # -----------------------------------------------------------------
-    # manual_fetch_posts — returns list (used by /checkfa)
-    # -----------------------------------------------------------------
+ 
     def manual_fetch_posts(self, url: str) -> List[Dict]:
         url = normalize_url(url)
         debug(f"[manual_fetch_posts] URL = {url}")
@@ -613,9 +566,6 @@ class ForumTracker:
         debug(f"[manual_fetch_posts] Parsed posts = {len(posts)}")
         return posts
 
-    # -----------------------------------------------------------------
-    # debug_reply_form — diagnostic для формы ответа
-    # -----------------------------------------------------------------
     def debug_reply_form(self, url: str) -> str:
         url = normalize_url(url)
         html = self.fetch_html(url)
@@ -657,9 +607,6 @@ class ForumTracker:
             + html[-2000:]
         )
 
-    # -----------------------------------------------------------------
-    # fetch_latest_post_id helper (used by command handler to seed last)
-    # -----------------------------------------------------------------
     def fetch_latest_post_id(self, url: str) -> Optional[str]:
         """Возвращает id самого свежего поста на thread-странице или None."""
         try:
@@ -673,9 +620,6 @@ class ForumTracker:
         except Exception:
             return None
 
-    # -----------------------------------------------------------------
-    # Improved post_message: tries normal POST then multipart fallback
-    # -----------------------------------------------------------------
     def post_message(self, url: str, message: str) -> Dict:
         debug(f"[POST] Sending to: {url}")
         url = normalize_url(url)
@@ -798,9 +742,6 @@ class ForumTracker:
             "multipart_err": multipart_error
         }
 
-    # -----------------------------------------------------------------
-    # check cookies: returns dict with status & logged_in flag
-    # -----------------------------------------------------------------
     def check_cookies(self) -> Dict:
         test_url = (FORUM_BASE.rstrip("/") + "/index.php") if FORUM_BASE else "/"
         headers = {
@@ -825,9 +766,6 @@ class ForumTracker:
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
-    # -----------------------------------------------------------------
-    # keepalive thread (pings forum periodically)
-    # -----------------------------------------------------------------
     def _keepalive_loop(self):
         while self._keepalive_running:
             try:
@@ -836,9 +774,6 @@ class ForumTracker:
                 warn(f"keepalive error: {e}")
             time.sleep(max(60, self.interval * 3))
 
-    # -----------------------------------------------------------------
-    # debug_forum — detailed diagnostic for forum pages
-    # -----------------------------------------------------------------
     def debug_forum(self, url: str) -> str:
         out_lines = []
         try:
@@ -916,9 +851,6 @@ class ForumTracker:
         return "\n".join(out_lines)
 
 
-# ======================================================================
-#  stay_online_loop — helper for main.py (external use)
-# ======================================================================
 def stay_online_loop():
     """
     Simple loop to ping FORUM_BASE every 3 minutes to keep session alive.
