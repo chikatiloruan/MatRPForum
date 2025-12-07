@@ -1,8 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-Переработанный command_handler.py с поддержкой JSON-шаблонов (data/templates.json),
-командами /profile, /checkpr, /shablon, /addsh, /removesh и улучшенной обработкой ошибок.
-"""
+
 from __future__ import annotations
 
 import re
@@ -106,9 +102,7 @@ def list_templates(peer_id: int) -> List[str]:
     return []
 
 
-# ============================================================== #
-#  Основной класс CommandHandler
-# ============================================================== #
+
 class CommandHandler:
     def __init__(self, vk):
         self.vk = vk
@@ -123,9 +117,7 @@ class CommandHandler:
 
         self._last_msg = None
 
-    # ---------------------------------------------------------
-    #                      Основной обработчик
-    # ---------------------------------------------------------
+  
     def handle(self, text: str, peer_id: int, user_id: int):
         try:
             txt = (text or "").strip()
@@ -223,7 +215,7 @@ class CommandHandler:
             if cmd == "/stats": return self.cmd_stats(peer_id)
             if cmd == "/help": return self.cmd_help(peer_id)
 
-            # неизвестная команда
+            
             self.vk.send(peer_id, "Неизвестная команда. Напиши /help")
 
         except Exception as e:
@@ -233,7 +225,7 @@ class CommandHandler:
                 pass
             traceback.print_exc()
 
-    # -------------------- DEBUG (ответ-проверка формы) --------------------
+   
     def cmd_debug_otvet(self, peer_id, parts):
         if len(parts) < 2:
             return self.vk.send(peer_id, "Использование: /debug_otvet <url>")
@@ -270,7 +262,7 @@ class CommandHandler:
             return self.vk.send(peer_id, f"❌ Ошибка debug_forum: {e}")
         self._send_long(peer_id, res)
 
-    # -------------------- TRACK / UNTRACK / LIST --------------------
+
     def cmd_track(self, peer_id, parts):
         if len(parts) < 2:
             return self.vk.send(peer_id, "Использование: /track <url>")
@@ -293,22 +285,20 @@ class CommandHandler:
         else:
             return self.vk.send(peer_id, "❌ Эта ссылка не является ни разделом, ни темой.")
 
-        # ---------------------------------------------------------
-        #       ПОЛУЧАЕМ ПОСЛЕДНИЙ ID
-        # ---------------------------------------------------------
+     
         latest = None
         try:
-            # Если это тема — берём ID последнего поста
+       
             if typ == "thread":
                 if hasattr(self.tracker, "fetch_latest_post_id"):
                     latest = self.tracker.fetch_latest_post_id(clean_url)
 
-            # Если это раздел — берём TID самой последней темы
+        
             elif typ == "forum":
                 html = self.tracker.fetch_html(clean_url)
                 topics = parse_forum_topics(html, clean_url)
                 if topics:
-                    # сортируем по дате → если нет date, сортируем по tid
+            
                     sortable = []
                     for t in topics:
                         dt = t.get("date") or ""
@@ -321,7 +311,6 @@ class CommandHandler:
                     last_tid = sortable[-1][1]
                     last_date = sortable[-1][0]
 
-                    # сохраняем tid;;date
                     latest = f"{last_tid};;{last_date}"
 
         except Exception:
@@ -338,9 +327,7 @@ class CommandHandler:
             except Exception:
                 pass
 
-        # ---------------------------------------------------------
-        #      УВЕДОМЛЕНИЕ
-        # ---------------------------------------------------------
+ 
         if typ == "forum":
             self.vk.send(peer_id, f"📁 Отслеживание раздела добавлено:\n{clean_url}")
         else:
@@ -374,7 +361,7 @@ class CommandHandler:
         except Exception as e:
             self.vk.send(peer_id, f"Ошибка trigger_check: {e}")
 
-    # -------------------- /checkfa (ручной fetch posts) --------------------
+
     def cmd_checkfa(self, peer_id, parts):
         if len(parts) < 2:
             return self.vk.send(peer_id, "Использование: /checkfa <url>")
@@ -409,7 +396,7 @@ class CommandHandler:
                 for b in batch:
                     self.vk.send(peer_id, b)
 
-    # -------------------- AI --------------------
+  
     def cmd_ai(self, peer_id, parts):
         if len(parts) < 2:
             return self.vk.send(peer_id, "Использование: /ai <текст>")
@@ -419,7 +406,7 @@ class CommandHandler:
         except Exception as e:
             self.vk.send(peer_id, f"AI Ошибка: {e}")
 
-    # -------------------- POST MESSAGE --------------------
+
     def cmd_otvet(self, peer_id, parts):
         if len(parts) < 3:
             return self.vk.send(peer_id, "Использование: /otvet <url> <текст>")
@@ -443,7 +430,7 @@ class CommandHandler:
         else:
             return self.vk.send(peer_id, f"❌ Ошибка: {res.get('error')}")
 
-    # -------------------- TLIST / TLISTALL --------------------
+
     def cmd_tlist(self, peer_id, parts):
         if len(parts) < 2:
             return self.vk.send(peer_id, "Использование: /tlist <url-раздела>")
@@ -463,7 +450,7 @@ class CommandHandler:
         last5 = topics[:5]
         out = "📝 Последние темы раздела:\n\n"
         for t in last5:
-            # нормализуем ссылку: если это префикс (contains &prefix_id) — пытаемся превратить в thread
+
             url_to_send = t['url']
             out += f"📄 {t['title']}\n🔗 {url_to_send}\n👤 {t['author']}\n\n"
         self.vk.send(peer_id, out)
@@ -498,16 +485,16 @@ class CommandHandler:
         for c in chunks:
             self.vk.send(peer_id, c)
 
-    # -------------------- ШАБЛОНЫ --------------------
+  
     def cmd_addsh(self, peer_id, parts):
         """
         /addsh <name> <text>
         """
         if len(parts) < 2:
             return self.vk.send(peer_id, "Использование: /addsh <name> <text>")
-        # parts[1] may include both name and text if maxsplit=2 wasn't used; parse robustly
+      
         rest = parts[1] if len(parts) == 2 else parts[1] + (" " + (parts[2] if len(parts) > 2 else ""))
-        # try split once on space
+
         m = re.match(r"(\S+)\s+(.+)", rest)
         if not m:
             return self.vk.send(peer_id, "Использование: /addsh <name> <text>")
@@ -563,7 +550,7 @@ class CommandHandler:
         else:
             return self.vk.send(peer_id, f"❌ Ошибка постинга: {res.get('error')}")
 
-    # -------------------- ПРОФИЛИ --------------------
+
     def cmd_profile(self, peer_id, parts):
         """
         /profile <url> - показать информацию о профиле (если доступно)
@@ -605,7 +592,7 @@ class CommandHandler:
                 return None
             soup = __import__("bs4").BeautifulSoup(html, "html.parser")
 
-            # username
+      
             uname = None
             el = soup.select_one(".p-title-value .username, h1.p-title-value, .block-minor .username")
             if el:
@@ -615,7 +602,7 @@ class CommandHandler:
                 if el:
                     uname = el.get_text(strip=True)
 
-            # user id from data attributes or url
+         
             user_id = None
             m = re.search(r"/members/[^.]+.(\d+)", url)
             if m:
@@ -625,10 +612,10 @@ class CommandHandler:
                 if a:
                     user_id = a.get("data-user-id")
 
-            # registered / message count: try common labels
+
             registered = None
             msg_count = None
-            # XenForo often has dl.listPlain or pairs
+     
             txt = soup.get_text(" ", strip=True)
             mreg = re.search(r"Registered\s*[:\s]*([A-Za-z0-9,.\- ]+)", txt, re.IGNORECASE)
             if mreg:
@@ -637,7 +624,7 @@ class CommandHandler:
             if mmsg:
                 msg_count = mmsg.group(2).strip()
 
-            # about
+     
             about = ""
             about_el = soup.select_one(".p-profile-about, .about, .userAbout, .user-blurb, .message-userContent")
             if about_el:
@@ -653,7 +640,7 @@ class CommandHandler:
         except Exception:
             return None
 
-    # -------------------- ADMIN COMMANDS --------------------
+  
     def cmd_kick(self, peer_id, parts):
         if len(parts) < 2:
             return self.vk.send(peer_id, "Использование: /kick <id>")
@@ -787,7 +774,7 @@ class CommandHandler:
                 f"URL: {t.get('url')}\n\n"
             )
 
-        # длинный текст → разбиваем
+    
         self._send_long(peer_id, out)
 
     def cmd_debugcheck(self, peer_id, parts):
@@ -807,7 +794,7 @@ class CommandHandler:
             topics = parse_forum_topics(html, url)
             if not topics:
                 return self.vk.send(peer_id, "⚠️ Темы не найдены.")
-        # покажем первые 10 с created
+       
             lines = ["🔍 DEBUG TOPICS\n"]
             for t in topics[:30]:
                 lines.append(
@@ -816,7 +803,7 @@ class CommandHandler:
                 )
             self._send_long(peer_id, "\n".join(lines))
 
-        # текущая запись last в БД для этого peer (если есть)
+ 
             try:
                 rows = list_tracks(peer_id)
                 for u, typ, last in rows:
@@ -830,9 +817,7 @@ class CommandHandler:
             return self.vk.send(peer_id, f"Ошибка debugcheck: {e}")
 
 
-    # ---------------------------------------------------------
-    #  УТИЛИТЫ
-    # ---------------------------------------------------------
+
     def _parse_user(self, s: str) -> int:
         if not s:
             return 0
@@ -863,4 +848,4 @@ class CommandHandler:
             except Exception:
                 print(f"[CMD] Failed to send chunk to {peer_id}")
 
-# --- конец файла ---
+
