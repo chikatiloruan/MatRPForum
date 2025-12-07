@@ -1,4 +1,4 @@
-# bot/utils.py
+
 import re
 import sys
 from urllib.parse import urlparse, parse_qs
@@ -46,22 +46,22 @@ def extract_post_id_from_article(article_html: str) -> str:
     if not article_html:
         return ""
 
-    # Ищем pattern data-message-id="12345"
+
     m = re.search(r'data-message-id=["\'](\d+)["\']', article_html)
     if m:
         return m.group(1)
 
-    # Ищем data-content="post-12345"
+
     m = re.search(r'data-content=["\']post-(\d+)["\']', article_html)
     if m:
         return m.group(1)
 
-    # Ищем id="js-post-12345"
+
     m = re.search(r'id=["\']js-post-(\d+)["\']', article_html)
     if m:
         return m.group(1)
 
-    # fallback — ищем любые числа в article, но осторожно
+
     m = re.search(r'post[-_]?(\\d+)', article_html)
     if m:
         return m.group(1)
@@ -84,7 +84,7 @@ def normalize_url(url: str) -> str:
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
     url = url.replace("\r", "").replace("\n", "")
-    # remove repeated slashes at end
+ 
     while url.endswith("//"):
         url = url[:-1]
     return url
@@ -114,7 +114,7 @@ def detect_type(url: str) -> str:
 
     u = url.lower()
 
-    # ---- темы ----
+
     if "/threads/" in u:
         return "thread"
     if "index.php?threads=" in u:
@@ -124,7 +124,7 @@ def detect_type(url: str) -> str:
     if "/posts/" in u:
         return "thread"
 
-    # ---- форумы (разделы) ----
+
     if "/forums/" in u:
         return "forum"
     if "index.php?forums=" in u:
@@ -132,11 +132,9 @@ def detect_type(url: str) -> str:
     if "forums=" in u:
         return "forum"
 
-    # ---- участники ----
     if "/members/" in u:
         return "members"
 
-    # по умолчанию лучше считать темой
     return "thread"
 
 
@@ -147,11 +145,11 @@ def extract_thread_id(url: str) -> str:
     if not url:
         return ""
     try:
-        # /posts/12345
+    
         m = re.search(r'/posts/(\d+)', url)
         if m:
             return m.group(1)
-        # .12345/ at end or .12345 in query
+        
         m = re.search(r'\.(\d+)(?:/|$)', url)
         if m:
             return m.group(1)
