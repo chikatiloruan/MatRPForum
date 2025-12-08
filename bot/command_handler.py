@@ -609,7 +609,7 @@ class CommandHandler:
         }
 
     # 👤 Ник
-        name = soup.select_one(".memberHeader-name, h1.p-title-value")
+        name = soup.select_one(".username, h1.p-title-value")
         if name:
             data["username"] = name.get_text(strip=True)
 
