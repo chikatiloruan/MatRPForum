@@ -27,6 +27,20 @@ DB = os.path.join(os.path.dirname(os.path.dirname(__file__)), "bot_data.db")
 TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 TEMPLATES_FILE = os.path.join(TEMPLATES_DIR, "templates.json")
 
+REACTIONS = {
+    "👍 Нравится": 1,
+    "❤️ Люблю": 2,
+    "😂 XaXa": 3,
+    "👋 Bay": 4,
+    "😢 Грустно": 5,
+    "😡 Злой": 6,
+    "🔥 Крутой": 7,
+    "✨ Шикарно": 8,
+    "😘 Целую": 9,
+    "🏆 Лучший": 10
+}
+
+
 
 # ----------------- Утилиты шаблонов (JSON) -----------------
 def _ensure_templates_file():
@@ -180,6 +194,10 @@ class CommandHandler:
                 return self.cmd_tlistall(peer_id, parts)
             if cmd == "/checkcookies":
                 return self.cmd_checkcookies(peer_id)
+
+            if cmd == "/reaction":
+                return self.cmd_reaction(peer_id, parts)
+                
 
             # шаблоны
             if cmd == "/addsh":
@@ -834,6 +852,67 @@ class CommandHandler:
 
         except Exception as e:
             return self.vk.send(peer_id, f"Ошибка debugcheck: {e}")
+
+    def cmd_reaction(self, peer_id, parts):
+        if len(parts) < 2:
+            return self.vk.send(peer_id, "Использование:\n/reaction <ссылка_на_пост>")
+
+        post_url = parts[1]
+
+        buttons = []
+        row = []
+
+        for i, (title, rid) in enumerate(REACTIONS.items(), 1):
+            row.append({
+                "action": {
+                    "type": "callback",
+                    "label": title,
+                    "payload": {
+                        "cmd": "reaction_btn",
+                        "url": post_url,
+                        "reaction_id": rid
+                    }
+                },
+                "color": "secondary"
+            })
+
+            if i % 3 == 0:
+                buttons.append(row)
+                row = []
+
+        if row:
+            buttons.append(row)
+
+        keyboard = {
+            "inline": True,
+            "buttons": buttons
+        }
+
+        self.vk.send(peer_id, "Выбери реакцию:", keyboard=keyboard)
+
+    def handle_callback(self, event):
+        payload = event["payload"]
+
+        if payload.get("cmd") == "reaction_btn":
+            url = payload["url"]
+            reaction_id = payload["reaction_id"]
+
+            ok, msg = self.tracker.react_to_post(url, reaction_id)
+
+            if ok:
+                self.vk.edit_message(
+                    event["peer_id"],
+                    event["conversation_message_id"],
+                    "✅ Реакция поставлена"
+                )
+            else:
+                self.vk.edit_message(
+                    event["peer_id"],
+                    event["conversation_message_id"],
+                    f"❌ Ошибка: {msg}"
+                )
+
+
 
 
 
