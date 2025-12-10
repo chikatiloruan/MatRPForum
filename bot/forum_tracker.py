@@ -365,6 +365,42 @@ class ForumTracker:
             warn(f"session.get error: {e}")
             raise
 
+    def react_to_post(self, post_url: str, reaction_id: int):
+        try:
+            # 1. вытаскиваем ID поста
+            import re
+            m = re.search(r'post-(\d+)', post_url)
+            if not m:
+                return False, "Не найден ID поста"
+
+            post_id = m.group(1)
+
+            # 2. формируем URL реакции (XenForo)
+            react_url = f"{FORUM_BASE}/index.php?posts/{post_id}/react"
+
+            data = {
+                "reaction_id": reaction_id,
+                "_xfToken": self.cookies.get("xf_csrf", "")
+            }
+
+            r = self.session.post(
+                react_url,
+                data=data,
+                headers={
+                    "referer": post_url,
+                    "x-requested-with": "XMLHttpRequest"
+                },
+                timeout=15
+            )
+
+            if r.status_code == 200:
+                return True, "ok"
+
+            return False, f"HTTP {r.status_code}"
+
+        except Exception as e:
+            return False, str(e)
+
     # --- API control ---
     def start(self):
         if self._running:
