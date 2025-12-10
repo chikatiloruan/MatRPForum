@@ -8,6 +8,8 @@ from typing import Callable
 
 import vk_api
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
+from vk_api.keyboard import VkKeyboard, VkKeyboardColor
+
 
 from .command_handler import CommandHandler
 from .storage import init_db
@@ -69,11 +71,19 @@ class VKBot:
            
                 time.sleep(1)
 
-    def send(self, peer_id: int, text: str):
+    def send(self, peer_id: int, text: str, keyboard=None):
         try:
-            self.api.messages.send(peer_id=peer_id, message=text, random_id=0)
+            params = {
+                "peer_id": peer_id,
+                "message": text,
+                "random_id": 0
+            }
+            if keyboard:
+                params["keyboard"] = keyboard
+            self.api.messages.send(**params)
         except Exception as e:
             print("VK send error:", e)
+
 
     def send_big(self, peer_id: int, text: str):
         if not text:
