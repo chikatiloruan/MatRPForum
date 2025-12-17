@@ -538,10 +538,10 @@ class CommandHandler:
             self.vk.send(peer_id, f"❌ Шаблон '{name}' не найден.")
 
     def cmd_shablon(self, peer_id, parts):
-    """
-    /shablon <name> <thread_url>
-    Отправляет шаблон в тему форума
-    """
+        """
+        /shablon <name> <thread_url>
+        Отправляет шаблон в тему форума
+        """
         if len(parts) < 3:
             return self.vk.send(
                 peer_id,
