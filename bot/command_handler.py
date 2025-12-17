@@ -538,35 +538,45 @@ class CommandHandler:
             self.vk.send(peer_id, f"❌ Шаблон '{name}' не найден.")
 
     def cmd_shablon(self, peer_id, parts):
-        """
-        /shablon <name> <thread_url>
-        Отправляет шаблон как ответ в указанную тему (uses tracker.post_message).
-        """
+    """
+    /shablon <name> <thread_url>
+    Отправляет шаблон в тему форума
+    """
         if len(parts) < 3:
-            return self.vk.send(peer_id, "Использование: /shablon <name> <thread_url>")
+            return self.vk.send(
+                peer_id,
+                "Использование:\n/shablon <имя_шаблона> <url_темы>"
+            )
+
         name = parts[1].strip()
         url = normalize_url(parts[2].strip())
+
+        if not url.startswith(FORUM_BASE):
+            return self.vk.send(peer_id, f"❌ URL должен быть на {FORUM_BASE}")
+
         txt = get_template(peer_id, name)
         if not txt:
             return self.vk.send(peer_id, f"❌ Шаблон '{name}' не найден.")
-        if not url.startswith(FORUM_BASE):
-            return self.vk.send(peer_id, f"❌ URL должен быть на {FORUM_BASE}")
+
         try:
             res = self.tracker.post_message(url, txt)
         except Exception as e:
-            return self.vk.send(peer_id, f"Ошибка отправки: {e}")
-        if res.get("ok"):
-            # обновляем last (если нужно)
-            try:
-                if hasattr(self.tracker, "fetch_latest_post_id"):
-                    latest = self.tracker.fetch_latest_post_id(url)
-                    if latest:
-                        update_last(peer_id, url, str(latest))
-            except Exception:
-                pass
-            return self.vk.send(peer_id, f"✅ Шаблон '{name}' отправлен в {url}")
-        else:
-            return self.vk.send(peer_id, f"❌ Ошибка постинга: {res.get('error')}")
+            return self.vk.send(peer_id, f"❌ Ошибка отправки: {e}")
+
+        if not res:
+            return self.vk.send(peer_id, "❌ Не удалось отправить сообщение")
+
+        if res.get("ok") is True:
+            return self.vk.send(
+                peer_id,
+                f"✅ Шаблон '{name}' успешно отправлен\n🔗 {url}"
+            )
+
+        return self.vk.send(
+            peer_id,
+            f"❌ Ошибка постинга: {res.get('error', 'неизвестная ошибка')}"
+        )
+
 
 
     def cmd_profile(self, peer_id, parts):
