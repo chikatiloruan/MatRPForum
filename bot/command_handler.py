@@ -40,6 +40,11 @@ REACTIONS = {
     "🏆 Лучший": 10
 }
 
+OFFLINE_PUNISH_URL = "https://forum.matrp.ru/index.php?threads/28-vydaca-offline-nakazanij-4-urovni.1374310/"
+PREFIX_CHANGE_URL = "https://forum.matrp.ru/index.php?threads/28-zaavlenie-na-izmenenie-prefiksa-v-zalobah.1374303/"
+FAST_DATA_DIR = "data"
+ADMIN_PREFIX = "/ Obama"
+
 
 
 # ----------------- Утилиты шаблонов (JSON) -----------------
