@@ -6,6 +6,7 @@ import traceback
 import sqlite3
 import os
 import json
+from bs4 import BeautifulSoup
 from typing import List, Tuple, Optional, Dict
 
 # локальные импорты
@@ -48,6 +49,15 @@ ADMIN_PREFIX = "/ Obama"
 
 
 # ----------------- Утилиты шаблонов (JSON) -----------------
+def load_fast_rules():
+    with open(os.path.join(FAST_DATA_DIR, "fast_rules.json"), "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def load_fast_status():
+    with open(os.path.join(FAST_DATA_DIR, "fast_status.json"), "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
 def _ensure_templates_file():
     if not os.path.exists(TEMPLATES_DIR):
         try:
