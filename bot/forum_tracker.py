@@ -156,6 +156,19 @@ def parse_thread_posts(html: str, page_url: str, session=None) -> List[Dict]:
 
     return out
 
+def parse_fast_nickname(html: str) -> str:
+    soup = BeautifulSoup(html, "html.parser")
+
+    el = soup.select_one(
+        ".pairs.pairs--columns.pairs--fixedSmall.pairs--customField dd"
+    )
+
+    if not el:
+        raise ValueError("Не удалось найти ник нарушителя")
+
+    return el.get_text(strip=True)
+
+
 
 
 def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
