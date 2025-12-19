@@ -1,0 +1,14 @@
+{
+  "dm": {
+    "keywords": ["дм", "deathmatch"],
+    "reason": "DM",
+    "minutes": 50,
+    "command": "/offjail"
+  },
+  "db": {
+    "keywords": ["дб", "drive by"],
+    "reason": "DB",
+    "minutes": 60,
+    "command": "/offjail"
+  }
+}
