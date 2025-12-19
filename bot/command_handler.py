@@ -210,6 +210,10 @@ class CommandHandler:
             if cmd == "/checkcookies":
                 return self.cmd_checkcookies(peer_id)
 
+            if cmd == "/fast":
+                return self.cmd_fast(peer_id, parts)
+
+
             if cmd == "/reaction":
                 return self.cmd_reaction(peer_id, parts)
                 
@@ -428,6 +432,105 @@ class CommandHandler:
             except Exception:
                 for b in batch:
                     self.vk.send(peer_id, b)
+
+
+
+
+    def cmd_fast(self, peer_id, parts):
+        if len(parts) < 2:
+            return self.vk.send(peer_id, "Использование: /fast <url_жалобы>")
+
+        url = normalize_url(parts[1])
+
+        if not url.startswith(FORUM_BASE):
+            return self.vk.send(peer_id, "❌ Это не ссылка на форум")
+
+    # 1. Загружаем тему
+        try:
+            html = self.tracker.fetch_html(url)
+        except Exception as e:
+            return self.vk.send(peer_id, f"Ошибка загрузки темы: {e}")
+
+        posts = parse_thread_posts(html, url, self.tracker.session)
+        if not posts:
+            return self.vk.send(peer_id, "❌ Не удалось получить сообщения")
+
+    # 2. СНАЧАЛА проверяем последнее сообщение
+        last_post_text = posts[-1]["text"].lower()
+        status = load_fast_status()
+
+        for deny_word in status["deny"]:
+            if deny_word in last_post_text:
+            # ❌ отказ → сразу смена префикса
+                self.tracker.post_message(
+                    PREFIX_CHANGE_URL,
+                    (
+                        "Прошу сменить префикс жалобы.\n\n"
+                        f"Жалоба отклонена.\n"
+                        f"Ссылка:\n{url}"
+                    )
+                )
+                return self.vk.send(
+                    peer_id,
+                    "❌ Найден отказ. Наказание не выдано, заявка на смену префикса отправлена."
+                )
+
+    # 3. Берём ПЕРВЫЙ пост (сама жалоба)
+        complaint_text = posts[0]["text"].lower()
+
+        rules = load_fast_rules()
+        rule = None
+
+        for r in rules.values():
+            if any(word in complaint_text for word in r["keywords"]):
+                rule = r
+                break
+
+        if not rule:
+            return self.vk.send(peer_id, "⚠️ Не удалось определить нарушение")
+
+    # 4. Ник нарушителя
+        try:
+            nickname = parse_fast_nickname(html)
+        except Exception as e:
+            return self.vk.send(peer_id, f"❌ Ошибка парсинга ника: {e}")
+
+    # 5. Формируем команду
+        command_text = (
+            f"{rule['command']} "
+            f"{nickname} "
+            f"{rule['minutes']} "
+            f"{rule['reason']} "
+            f"{ADMIN_PREFIX}"
+        )
+
+    # 6. OFFLINE выдача
+        self.tracker.post_message(
+            OFFLINE_PUNISH_URL,
+            (
+                f"{command_text}\n\n"
+                f"Ссылка на жалобу:\n{url}"
+            )
+        )
+
+    # 7. Ответ в жалобу
+        self.tracker.post_message(
+            url,
+            (
+                "✅ Жалоба одобрена.\n"
+                f"Нарушение: {rule['reason']}\n"
+                f"Наказание: {rule['minutes']} минут\n\n"
+                "Наказание выдано оффлайн."
+            )
+        )
+
+        return self.vk.send(
+            peer_id,
+            "⚡ FAST выполнен успешно:\n"
+            f"{command_text}"
+        )
+
+    
 
   
     def cmd_ai(self, peer_id, parts):
