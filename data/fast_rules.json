@@ -1,14 +1,21 @@
 {
-  "dm": {
-    "keywords": ["дм", "deathmatch"],
-    "reason": "DM",
-    "minutes": 50,
-    "command": "/offjail"
-  },
-  "db": {
-    "keywords": ["дб", "drive by"],
-    "reason": "DB",
-    "minutes": 60,
-    "command": "/offjail"
+  "admin_prefix": "Obama",
+  "keywords": [
+    {
+      "words": ["dm", "дм"],
+      "reason": "DM",
+      "minutes": 50,
+      "command": "/offjail"
+    },
+    {
+      "words": ["db", "дб"],
+      "reason": "DB",
+      "minutes": 60,
+      "command": "/offjail"
+    }
+  ],
+  "decision_words": {
+    "approved": ["одобрено", "одобряю", "принято"],
+    "rejected": ["отказано", "отказ"]
   }
 }
