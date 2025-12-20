@@ -8,10 +8,858 @@
       "command": "/offjail"
     },
     {
-      "words": ["db", "дб"],
-      "reason": "DB",
+      "words": ["dm в интерьере", "дм в интерьере", "interior dm"],
+      "reason": "DM в интерьере",
+      "minutes": 50,
+      "command": "/offjail"
+    },
+    {
+      "words": ["dm in greenzone", "дм в гринзоне", "гринзон дм", "greenzone dm"],
+      "reason": "DM in GreenZone",
       "minutes": 60,
       "command": "/offjail"
+    },
+    {
+      "words": ["dm car", "дм кар", "дм машина"],
+      "reason": "DM car",
+      "minutes": 10,
+      "command": "/offjail"
+    },
+    {
+      "words": ["массовый дм", "масс дм", "mass dm", "3+ дм"],
+      "reason": "Массовый DM(3+ чел)",
+      "minutes": 90,
+      "command": "/offjail",
+      "offwarn": true
+    },
+    {
+      "words": ["dm на слете", "дм на слете", "slet dm"],
+      "reason": "DM на слете",
+      "minutes": 60,
+      "command": "/offjail"
+    },
+    {
+      "words": ["dm в кпз", "nonrp cop", "дм кпз", "nonrp коп"],
+      "reason": "DM в КПЗ (NonRP cop)",
+      "offwarn": true,
+      "command": "/offwarn"
+    },
+    {
+      "words": ["массовые ск", "ск у дома", "масс ск"],
+      "reason": "Массовые СК у дома семьи",
+      "offwarn": true,
+      "command": "/offwarn"
+    },
+    {
+      "words": ["db", "дб", "drive by"],
+      "reason": "DB",
+      "minutes": 50,
+      "command": "/offjail"
+    },
+    {
+      "words": ["team kill", "тимкилл", "тк"],
+      "reason": "Team Kill",
+      "minutes": 50,
+      "command": "/offjail"
+    },
+    {
+      "words": ["массовый тимкилл", "масс тк"],
+      "reason": "Массовый Team Kill",
+      "offwarn": true,
+      "command": "/offwarn"
+    },
+    {
+      "words": ["repeat kill", "репит килл", "повтор убийство"],
+      "reason": "Repeat Kill",
+      "minutes": 30,
+      "command": "/offjail"
+    },
+    {
+      "words": ["revenge kill", "риванж килл", "месть убийство"],
+      "reason": "Revenge Kill",
+      "minutes": 30,
+      "command": "/offjail"
+    },
+    {
+      "words": ["power gaming", "павер гейминг", "pg"],
+      "reason": "Power Gaming",
+      "minutes": 30,
+      "command": "/offjail"
+    },
+    {
+      "words": ["spawn kill", "спавн килл", "ск"],
+      "reason": "Spawn Kill",
+      "minutes": 50,
+      "command": "/offjail"
+    },
+    {
+      "words": ["массовый spawn kill", "массовый ск", "mass sk"],
+      "reason": "Массовый Spawn Kill",
+      "offwarn": true,
+      "command": "/offwarn"
+    },
+    {
+      "words": ["стрельба в gz", "стрельба гринзон", "shoot greenzone"],
+      "reason": "Стрельба в GZ",
+      "minutes": 30,
+      "command": "/offjail"
+    },
+    {
+      "words": ["читерство", "читы", "cheat"],
+      "reason": "Читерство",
+      "iban": true,
+      "hash": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["вредоносное по", "вред по", "harmful software"],
+      "reason": "Вредительское ПО",
+      "iban": true,
+      "hash": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["распространение читов", "продажа читов", "sell cheat"],
+      "reason": "Продажа/распространение читов",
+      "iban": true,
+      "hash": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["зажатие клавиш", "вилка", "стилус", "key hold"],
+      "reason": "Зажатие клавиш",
+      "command": "/offkick"
+    },
+    {
+      "words": ["автокликер", "auto clicker", "кликер"],
+      "reason": "Авто-кликер",
+      "days": 2,
+      "command": "/offban"
+    },
+    {
+      "words": ["бот", "тир бот", "спортзал бот", "bot"],
+      "reason": "Бот",
+      "days": 31,
+      "command": "/offban"
+    },
+    {
+      "words": ["продажа аккаунта", "sell account"],
+      "reason": "Продажа аккаунта",
+      "iban": true,
+      "hash": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["передача аккаунта", "account transfer"],
+      "reason": "Передача аккаунта",
+      "iban": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["продажа виртов", "продажа игровой валюты"],
+      "reason": "Продажа игровой валюты",
+      "iban": true,
+      "hash": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["попытка продажи виртов"],
+      "reason": "Попытка продажи игровой валюты",
+      "iban": true,
+      "hash": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["покупка виртов", "buy virtual"],
+      "reason": "Покупка игровой валюты",
+      "days": 31,
+      "reset": true,
+      "command": "/offban"
+    },
+    {
+      "words": ["продажа недвижимости за реал"],
+      "reason": "Продажа недвижимости за реал",
+      "iban": true,
+      "hash": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["прохождение обзвона"],
+      "reason": "Прохождение обзвона",
+      "iban": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["продажа бизнеса ниже стоимости"],
+      "reason": "Продажа бизнеса ниже гос. стоимости",
+      "days": 31,
+      "command": "/offban"
+    },
+    {
+      "words": ["обход ограничений", "обход систем"],
+      "reason": "Обход игровых систем",
+      "days": 31,
+      "command": "/offban"
+    },
+    {
+      "words": ["оскорбительный ник", "никнейм оскорбление"],
+      "reason": "Оскорбительные никнеймы",
+      "warning": true,
+      "command": "/pm"
+    },
+    {
+      "words": ["nonrp ник", "никнейм nonrp"],
+      "reason": "NonRP никнеймы",
+      "warning": true,
+      "command": "/pm"
+    },
+    {
+      "words": ["флуд сменой ника"],
+      "reason": "Флуд сменой ника",
+      "command": "/offkick"
+    },
+    {
+      "words": ["nonrp действия", "nonrp action"],
+      "reason": "NonRP действия",
+      "minutes": 20,
+      "command": "/offjail"
+    },
+    {
+      "words": ["nonrp казино", "казино стол"],
+      "reason": "NonRP поведение в казино",
+      "minutes": 10,
+      "command": "/offjail"
+    },
+    {
+      "words": ["afk арест", "afk смерть", "офф арест"],
+      "reason": "AFK при аресте/смерти",
+      "minutes": 30,
+      "command": "/offjail",
+      "offwarn": true
+    },
+    {
+      "words": ["интерьер от боя", "интерьер во время боя"],
+      "reason": "Интерьер от боя",
+      "minutes": 30,
+      "command": "/offjail"
+    },
+    {
+      "words": ["помеха на слете", "слет недвижимости"],
+      "reason": "Помеха на слете недвижимости",
+      "offwarn": true,
+      "command": "/offwarn"
+    },
+    {
+      "words": ["помеха игрокам", "afk на дороге"],
+      "reason": "Помехи игрокам",
+      "command": "/spawn"
+    },
+    {
+      "words": ["срыв мп", "помеха мп"],
+      "reason": "Срыв МП/Помеха на МП",
+      "command": "/spawn"
+    },
+    {
+      "words": ["авторынок места", "продажа мест авторынок"],
+      "reason": "Целенаправленное занятие мест на авторынке",
+      "minutes": 20,
+      "command": "/offjail"
+    },
+    {
+      "words": ["парковка на территории вч", "парковка вч"],
+      "reason": "Парковать личный транспорт на территории ВЧ",
+      "command": "/ticket_vehicle"
+    },
+    {
+      "words": ["срыв набора", "помеха набору"],
+      "reason": "Срыв набора/помеха на наборе",
+      "command": "/spawn"
+    },
+    {
+      "words": ["помеха работе администрации"],
+      "reason": "Помеха работе администрации",
+      "minutes": 5,
+      "command": "/offjail"
+    },
+    {
+      "words": ["стоянка биржа", "биржа обмена стоянка"],
+      "reason": "Стоянка в неположенном месте на территории биржи",
+      "command": "/ticket_vehicle"
+    },
+    {
+      "words": ["флуд анти-спам", "антиспам флуд"],
+      "reason": "Помеха работе администрации флудом",
+      "command": "/offkick"
+    },
+    {
+      "words": ["багоюз", "баг юз"],
+      "reason": "Багоюз",
+      "minutes": 60,
+      "command": "/offjail"
+    },
+    {
+      "words": ["нарко аптечка бой"],
+      "reason": "Использование нарко/аптечка в бою",
+      "minutes": 20,
+      "command": "/offjail"
+    },
+    {
+      "words": ["сбив анимации нарко"],
+      "reason": "Сбив анимации нapкотикoв",
+      "minutes": 30,
+      "command": "/offjail"
+    },
+    {
+      "words": ["продажа нарко гринзон", "продажа оружия гринзон"],
+      "reason": "Продажа нapкотикoв/оружия в GreenZone",
+      "minutes": 10,
+      "command": "/offjail"
+    },
+    {
+      "words": ["слив склада", "слив склада крупный"],
+      "reason": "Намеренный слив склада в крупном размере",
+      "offwarn": true,
+      "minutes": 1,
+      "command": "/offwarn"
+    },
+    {
+      "words": ["оскорбление названия", "название семьи оскорбление"],
+      "reason": "Название семьи/бизнеса с оскорблением",
+      "days": 1,
+      "command": "/offban"
+    },
+    {
+      "words": ["название номера оскорбление"],
+      "reason": "Название номера с оскорблением",
+      "days": 1,
+      "command": "/offban"
+    },
+    {
+      "words": ["нарушение пдд", "таран", "встречка"],
+      "reason": "Нарушения ПДД",
+      "minutes": 20,
+      "command": "/offjail"
+    },
+    {
+      "words": ["призыв к голосованию"],
+      "reason": "Призыв к голосованию во время часа тишины",
+      "minutes": 10,
+      "command": "/offmute"
+    },
+    {
+      "words": ["ложные слухи", "клевета", "распространение ложных слухов"],
+      "reason": "Распространение ложных слухов",
+      "warning": true,
+      "command": "/pm"
+    },
+    {
+      "words": ["оскорбления", "оскорбление"],
+      "reason": "Оскорбления",
+      "minutes": 20,
+      "command": "/offmute"
+    },
+    {
+      "words": ["мат в вип", "вип чат мат"],
+      "reason": "Мат в вип-чате",
+      "minutes": 30,
+      "command": "/offmute"
+    },
+    {
+      "words": ["оскорбление родителей", "маме привет"],
+      "reason": "Оскорбление родителей",
+      "minutes": 180,
+      "command": "/offmute"
+    },
+    {
+      "words": ["неадекватный войс", "voice chat неадекват"],
+      "reason": "Неадекватное поведение в VOICE CHAT",
+      "minutes": 20,
+      "command": "/offmute"
+    },
+    {
+      "words": ["оскорбление проекта"],
+      "reason": "Оскорбление проекта",
+      "minutes": 180,
+      "command": "/offmute"
+    },
+    {
+      "words": ["оскорбление администрации", "оск админа"],
+      "reason": "Оскорбление администрации",
+      "minutes": 180,
+      "command": "/offmute"
+    },
+    {
+      "words": ["неуважительное отношение к администрации"],
+      "reason": "Неуважительное отношение к администрации",
+      "minutes": 30,
+      "command": "/offmute"
+    },
+    {
+      "words": ["провокация войс", "войс провокация"],
+      "reason": "Провокация игроков на конфликт в VOICE CHAT",
+      "minutes": 20,
+      "command": "/offmute"
+    },
+    {
+      "words": ["розжиг", "межнациональная рознь"],
+      "reason": "Розжиг межнациональной розни",
+      "minutes": 15,
+      "command": "/offmute"
+    },
+    {
+      "words": ["mg", "мг", "метагейминг"],
+      "reason": "MG",
+      "minutes": 20,
+      "command": "/offmute"
+    },
+    {
+      "words": ["знаки в чате", "|", "()", "[]"],
+      "reason": "Использование в IC чат знаков",
+      "minutes": 10,
+      "command": "/offmute"
+    },
+    {
+      "words": ["капслок", "caps", "капс"],
+      "reason": "Капслок",
+      "minutes": 20,
+      "command": "/offmute"
+    },
+    {
+      "words": ["транслит", "translit"],
+      "reason": "Использование транслита в IC",
+      "minutes": 20,
+      "command": "/offmute"
+    },
+    {
+      "words": ["флуд", "flood"],
+      "reason": "Флуд",
+      "minutes": 20,
+      "command": "/offmute"
+    },
+    {
+      "words": ["флуд me", "флуд do", "me do флуд"],
+      "reason": "Флуд (/me /do)",
+      "minutes": 20,
+      "command": "/offmute"
+    },
+    {
+      "words": ["флуд командами", "команды флуд"],
+      "reason": "Флуд командами передачи документов",
+      "command": "/offkick"
+    },
+    {
+      "words": ["слив аккаунта", "аккаунт слив"],
+      "reason": "Слив аккаунта",
+      "iban": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["слив фракции", "уход фракция слив"],
+      "reason": "Слив фракции",
+      "days": 14,
+      "command": "/offban"
+    },
+    {
+      "words": ["поддержка сливщиков", "реклама сливщиков"],
+      "reason": "Поддержка сливщиков",
+      "days": 31,
+      "iban": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["покрывательство", "покрытие"],
+      "reason": "Покрывательство",
+      "days": 31,
+      "iban": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["слив личных данных", "сватинг", "травля"],
+      "reason": "Слив личных данных",
+      "days": 31,
+      "iban": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["реклама стороннего ресурса"],
+      "reason": "Реклама стороннего ресурса",
+      "iban": true,
+      "hash": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["реклама вредоносных ресурсов"],
+      "reason": "Реклама вредоносных ресурсов",
+      "iban": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["реклама ютуб", "реклама дискорд", "реклама тикток"],
+      "reason": "Реклама ютуб/дискорд/тикток",
+      "days": 7,
+      "command": "/offban"
+    },
+    {
+      "words": ["реклама биржа", "флуд биржа"],
+      "reason": "Реклама и флуд на территории биржи",
+      "minutes": 10,
+      "command": "/offmute"
+    },
+    {
+      "words": ["рынок государственные места", "больница реклама"],
+      "reason": "Рынок в государственных местах",
+      "minutes": 10,
+      "command": "/offmute"
+    },
+    {
+      "words": ["рынок рабочие чаты", "реклама рабочие чаты"],
+      "reason": "Рынок/реклама в рабочих чатах",
+      "minutes": 30,
+      "command": "/offmute"
+    },
+    {
+      "words": ["выдача себя за администратора"],
+      "reason": "Выдача себя за администратора",
+      "days": 1,
+      "command": "/offban"
+    },
+    {
+      "words": ["угроза баном", "угроза варном"],
+      "reason": "Угроза баном/варном",
+      "days": 1,
+      "command": "/offban"
+    },
+    {
+      "words": ["общение не на русском"],
+      "reason": "Общение в чате не на русском языке",
+      "warning": true,
+      "command": "/pm"
+    },
+    {
+      "words": ["музыка в войс", "музыка голосовой чат"],
+      "reason": "Музыка в Голосовой Чат",
+      "minutes": 5,
+      "command": "/offmute"
+    },
+    {
+      "words": ["промокоды", "распространение промокодов"],
+      "reason": "Упоминание и распространение промокодов",
+      "minutes": 20,
+      "command": "/offmute"
+    },
+    {
+      "words": ["некорректный розыск", "розыск всем подряд"],
+      "reason": "Некорректная выдача розыска",
+      "offwarn": true,
+      "command": "/offwarn"
+    },
+    {
+      "words": ["арест afk", "арест афк игрока"],
+      "reason": "Ареста игрока, находящегося в AFK",
+      "minutes": 50,
+      "command": "/offjail"
+    },
+    {
+      "words": ["изъятие лицензий"],
+      "reason": "Изъятие лицензий при отсутствии нарушений",
+      "offwarn": true,
+      "command": "/offwarn"
+    },
+    {
+      "words": ["nonrp штрафы"],
+      "reason": "НонРП при выписывании штрафов",
+      "minutes": 20,
+      "command": "/offjail"
+    },
+    {
+      "words": ["nonrp ожидание"],
+      "reason": "NonRP ожидание игроков",
+      "minutes": 10,
+      "command": "/offjail"
+    },
+    {
+      "words": ["арест новичков вокзал"],
+      "reason": "Намеренный арест новичков на вокзалах",
+      "offwarn": true,
+      "command": "/offwarn"
+    },
+    {
+      "words": ["nonrp cop", "nonrp коп"],
+      "reason": "nonRP cop",
+      "minutes": 60,
+      "command": "/offjail"
+    },
+    {
+      "words": ["отклонение маршрута"],
+      "reason": "Отклонение от маршрута при развозке материалов",
+      "minutes": 10,
+      "command": "/offjail"
+    },
+    {
+      "words": ["оффтоп д", "оффтоп dd"],
+      "reason": "оффтоп /d /dd",
+      "minutes": 15,
+      "command": "/offmute"
+    },
+    {
+      "words": ["неадекватный мегафон", "мегафон неадекват"],
+      "reason": "Неадекватное поведение в мегафон",
+      "minutes": 15,
+      "command": "/offmute"
+    },
+    {
+      "words": ["nonrp открытие клеток"],
+      "reason": "NonRP открытие клеток с заключенными",
+      "minutes": 20,
+      "command": "/offjail"
+    },
+    {
+      "words": ["дм на танке"],
+      "reason": "DM на танке",
+      "offwarn": true,
+      "command": "/offwarn"
+    },
+    {
+      "words": ["оскорбления гтрк", "мат гтрк"],
+      "reason": "Оскорбления/мат в ГТРК",
+      "minutes": 20,
+      "command": "/offmute"
+    },
+    {
+      "words": ["слив гтрк"],
+      "reason": "Слив ГТРК",
+      "iban": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["неотредактированное объявление"],
+      "reason": "Неотредактированное объявление",
+      "minutes": 30,
+      "command": "/offmute"
+    },
+    {
+      "words": ["nonrp объявления", "нарушение про"],
+      "reason": "Подача nonRP объявлений",
+      "minutes": 30,
+      "command": "/offmute"
+    },
+    {
+      "words": ["удаление объявлений гтрк"],
+      "reason": "Намеренное удаление объявлений в ГТРК",
+      "offwarn": true,
+      "command": "/offwarn"
+    },
+    {
+      "words": ["mg в эфире", "мг эфир"],
+      "reason": "МГ в эфире",
+      "minutes": 30,
+      "command": "/offmute"
+    },
+    {
+      "words": ["мат в эфире"],
+      "reason": "Мат в эфире",
+      "minutes": 30,
+      "command": "/offmute"
+    },
+    {
+      "words": ["оскорбления в эфире", "принижение в эфире"],
+      "reason": "Оскорбления в эфире",
+      "days": 1,
+      "command": "/offban"
+    },
+    {
+      "words": ["флуд в эфире", "неадекват эфир"],
+      "reason": "Флуд/неадекват в эфире",
+      "minutes": 30,
+      "command": "/offmute"
+    },
+    {
+      "words": ["реклама сторонних ссылок эфир"],
+      "reason": "Реклама сторонних ссылок в эфире",
+      "iban": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["слив эфира"],
+      "reason": "Слив эфира",
+      "iban": true,
+      "command": "/iban"
+    },
+    {
+      "words": ["аукционы в эфире", "сбор средств эфир"],
+      "reason": "Аукционы/сбор средств в эфире",
+      "offwarn": true,
+      "command": "/offwarn"
+    },
+    {
+      "words": ["приглашение в эфир 3+"],
+      "reason": "Намеренное приглашение более 3-ёх игроков в эфир",
+      "dismiss": true,
+      "command": "/dismiss"
+    },
+    {
+      "words": ["nonrp похищение", "похищение nonrp"],
+      "reason": "НонРП похищение",
+      "minutes": 10,
+      "command": "/offjail"
+    },
+    {
+      "words": ["ск на вч", "ск входы интерьеры"],
+      "reason": "СК на ВЧ",
+      "minutes": 10,
+      "command": "/offjail"
+    },
+    {
+      "words": ["антикапт", "anticapt"],
+      "reason": "Антикапт",
+      "minutes": 60,
+      "command": "/offjail"
+    },
+    {
+      "words": ["запретный софт", "твинк аккаунт"],
+      "reason": "Запретный софт с твинк-аккаунта",
+      "days": 31,
+      "command": "/offban"
+    },
+    {
+      "words": ["дм на складе", "дм шахта"],
+      "reason": "ДМ на складе и шахте",
+      "minutes": 60,
+      "command": "/offjail"
+    },
+    {
+      "words": ["дм игроков шахта"],
+      "reason": "ДМ игроков на шахте",
+      "offwarn": true,
+      "command": "/offwarn"
+    },
+    {
+      "words": ["нападение на фуру"],
+      "reason": "Нападение на фуру не в разрешенном месте",
+      "minutes": 20,
+      "command": "/offjail"
+    },
+    {
+      "words": ["помеха армейцам", "выезд со склада помеха"],
+      "reason": "Помеха армейцам при выезде со склада",
+      "command": "/offkick"
+    },
+    {
+      "words": ["маска капт"],
+      "reason": "Одевать маску на капте",
+      "minutes": 10,
+      "command": "/offjail"
+    },
+    {
+      "words": ["не рабочая форма", "дресс код капт"],
+      "reason": "Нахождение в не рабочей форме",
+      "minutes": 10,
+      "command": "/offjail"
+    },
+    {
+      "words": ["пинг 200+ капт"],
+      "reason": "Пинг 200+ во время капта",
+      "command": "/offkick"
+    },
+    {
+      "words": ["крыши высоких домов", "тюнинг авто крыши"],
+      "reason": "Занятие крыш высоких домов",
+      "minutes": 20,
+      "command": "/offjail"
+    },
+    {
+      "words": ["выход из гетто"],
+      "reason": "Выход из гетто на капте",
+      "minutes": 20,
+      "command": "/offjail"
+    },
+    {
+      "words": ["смена клиста", "цвет ника капт"],
+      "reason": "Смена клиста на капте",
+      "command": "/offkick"
+    },
+    {
+      "words": ["оффтоп гг", "оффтоп gg"],
+      "reason": "Оффтоп в /gg",
+      "minutes": 20,
+      "command": "/offmute"
+    },
+    {
+      "words": ["провокация капт"],
+      "reason": "Провокация на капте",
+      "minutes": 10,
+      "command": "/offmute"
+    },
+    {
+      "words": ["ск дома квартиры гетто"],
+      "reason": "СК у домов и квартир на территории гетто",
+      "minutes": 60,
+      "command": "/offjail"
+    },
+    {
+      "words": ["стрелять не причастных капт"],
+      "reason": "Стрелять/убивать не причастных к капту",
+      "minutes": 20,
+      "command": "/offjail"
+    },
+    {
+      "words": ["ожидание выхода базы", "база опг ожидание"],
+      "reason": "Намеренное ожидание выхода с базы ОПГ",
+      "minutes": 20,
+      "command": "/offjail"
+    },
+    {
+      "words": ["интерьер капт"],
+      "reason": "Интерьер во время капта",
+      "minutes": 10,
+      "command": "/offjail"
+    },
+    {
+      "words": ["баллончик капт"],
+      "reason": "Использование баллончика во время капта",
+      "minutes": 20,
+      "command": "/offjail"
+    },
+    {
+      "words": ["afk от смерти", "офф от смерти"],
+      "reason": "AFK/OFF от смерти на капте",
+      "minutes": 10,
+      "command": "/offjail"
+    },
+    {
+      "words": ["багоюз капт", "баг капт"],
+      "reason": "Багоюз на капте",
+      "minutes": 60,
+      "command": "/offjail"
+    },
+    {
+      "words": ["нарко в бою"],
+      "reason": "Нарко в бою на капте",
+      "minutes": 10,
+      "command": "/offjail"
+    },
+    {
+      "words": ["сбив анимации падения"],
+      "reason": "Сбив анимации падения на капте",
+      "minutes": 20,
+      "command": "/offjail"
+    },
+    {
+      "words": ["afk в квадрате", "уход afk стрела"],
+      "reason": "Уход в AFK в квадрате во время стрелы",
+      "command": "/offkick"
+    },
+    {
+      "words": ["высотки вертолет", "высотки баг"],
+      "reason": "Занимать позиции на высотках",
+      "offwarn": true,
+      "command": "/offwarn"
+    },
+    {
+      "words": ["многочисленные нарушения"],
+      "reason": "Многочисленные нарушения на капте",
+      "offwarn": true,
+      "command": "/offwarn"
     }
   ],
   "decision_words": {
