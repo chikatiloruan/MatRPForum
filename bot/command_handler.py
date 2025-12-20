@@ -41,10 +41,72 @@ REACTIONS = {
     "🏆 Лучший": 10
 }
 
-OFFLINE_PUNISH_URL = "https://forum.matrp.ru/index.php?threads/28-vydaca-offline-nakazanij-4-urovni.1374310/"
-PREFIX_CHANGE_URL = "https://forum.matrp.ru/index.php?threads/28-zaavlenie-na-izmenenie-prefiksa-v-zalobah.1374303/"
-FAST_DATA_DIR = "data"
-ADMIN_PREFIX = "/ Obama"
+#-------------УТИЛИТЫ /FAST---------
+FAST_RULES_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)),
+    "data",
+    "fast_rules.json"
+)
+
+OFFLINE_PUNISH_URL = (
+    "https://forum.matrp.ru/index.php?"
+    "threads/28-vydaca-offline-nakazanij-4-urovni.1374310/"
+)
+
+PREFIX_CHANGE_URL = (
+    "https://forum.matrp.ru/index.php?"
+    "threads/28-zaavlenie-na-izmenenie-prefiksa-v-zalobah.1374303/"
+)
+
+
+def load_fast_rules():
+    with open(FAST_RULES_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def get_last_post(posts):
+    if not posts:
+        return None
+    return posts[-1]
+
+
+def parse_fast_nickname(html):
+    soup = BeautifulSoup(html, "html.parser")
+
+    el = soup.select_one(
+        'dl.pairs.pairs--columns.pairs--fixedSmall.'
+        'pairs--customField[data-field="5"] dd'
+    )
+
+    if not el:
+        return None
+
+    return el.get_text(strip=True)
+
+
+def detect_violation(text, rules):
+    text = text.lower()
+
+    for rule in rules["keywords"]:
+        for word in rule["words"]:
+            if word in text:
+                return rule
+
+    return None
+
+
+def detect_decision(text, rules):
+    text = text.lower()
+
+    for word in rules["decision_words"]["approved"]:
+        if word in text:
+            return "approved"
+
+    for word in rules["decision_words"]["rejected"]:
+        if word in text:
+            return "rejected"
+
+    return None
 
 
 
