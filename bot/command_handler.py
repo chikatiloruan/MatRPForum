@@ -499,98 +499,126 @@ class CommandHandler:
 
 
     def cmd_fast(self, peer_id, parts):
+    """
+    /fast <url_жалобы>
+    """
+
         if len(parts) < 2:
-            return self.vk.send(peer_id, "Использование: /fast <url_жалобы>")
+            return self.vk.send(
+                peer_id,
+                "Использование: /fast <url_жалобы>"
+            )
 
         url = normalize_url(parts[1])
 
         if not url.startswith(FORUM_BASE):
-            return self.vk.send(peer_id, "❌ Это не ссылка на форум")
-
-    # 1. Загружаем тему
-        try:
-            html = self.tracker.fetch_html(url)
-        except Exception as e:
-            return self.vk.send(peer_id, f"Ошибка загрузки темы: {e}")
-
-        posts = parse_thread_posts(html, url, self.tracker.session)
-        if not posts:
-            return self.vk.send(peer_id, "❌ Не удалось получить сообщения")
-
-    # 2. СНАЧАЛА проверяем последнее сообщение
-        last_post_text = posts[-1]["text"].lower()
-        status = load_fast_status()
-
-        for deny_word in status["deny"]:
-            if deny_word in last_post_text:
-            # ❌ отказ → сразу смена префикса
-                self.tracker.post_message(
-                    PREFIX_CHANGE_URL,
-                    (
-                        "Прошу сменить префикс жалобы.\n\n"
-                        f"Жалоба отклонена.\n"
-                        f"Ссылка:\n{url}"
-                    )
-                )
-                return self.vk.send(
-                    peer_id,
-                    "❌ Найден отказ. Наказание не выдано, заявка на смену префикса отправлена."
-                )
-
-    # 3. Берём ПЕРВЫЙ пост (сама жалоба)
-        complaint_text = posts[0]["text"].lower()
+            return self.vk.send(
+                peer_id,
+                "❌ Это не ссылка на форум."
+            )
 
         rules = load_fast_rules()
-        rule = None
 
-        for r in rules.values():
-            if any(word in complaint_text for word in r["keywords"]):
-                rule = r
-                break
+    # ───────── Загружаем тему
+        html = self.tracker.fetch_html(url)
+        if not html:
+            return self.vk.send(
+                peer_id,
+                "❌ Не удалось загрузить тему."
+            )
 
-        if not rule:
-            return self.vk.send(peer_id, "⚠️ Не удалось определить нарушение")
-
-    # 4. Ник нарушителя
-        try:
-            nickname = parse_fast_nickname(html)
-        except Exception as e:
-            return self.vk.send(peer_id, f"❌ Ошибка парсинга ника: {e}")
-
-    # 5. Формируем команду
-        command_text = (
-            f"{rule['command']} "
-            f"{nickname} "
-            f"{rule['minutes']} "
-            f"{rule['reason']} "
-            f"{ADMIN_PREFIX}"
+    # ───────── Все посты (последняя страница)
+        posts = parse_thread_posts(
+            html,
+            url,
+            self.tracker.session
         )
 
-    # 6. OFFLINE выдача
+        if not posts:
+            return self.vk.send(
+                peer_id,
+                "❌ Сообщения не найдены."
+            )
+
+        last_post = get_last_post(posts)
+
+        decision = detect_decision(
+            last_post["text"],
+            rules
+        )
+
+        if not decision:
+            return self.vk.send(
+                peer_id,
+                "⏳ В теме нет решения (одобрено / отказано)."
+            )
+
+    # ───────── ОТКАЗ
+        if decision == "rejected":
+            text = (
+                f"Ссылка: {url}\n"
+                f"Статус: ❌ Отказано"
+            )
+
+            self.tracker.post_message(
+                PREFIX_CHANGE_URL,
+                text
+            )
+
+            return self.vk.send(
+                peer_id,
+                "❌ Отказ найден. Отправлено в смену префикса."
+            )
+
+    # ───────── ОДОБРЕНО
+        nickname = parse_fast_nickname(html)
+        if not nickname:
+           return self.vk.send(
+                peer_id,
+                "❌ Ник нарушителя не найден."
+            )
+
+        violation = detect_violation(
+            html,
+            rules
+        )
+
+        if not violation:
+            return self.vk.send(
+                peer_id,
+                "❌ Тип нарушения не найден."
+            )
+
+        command = (
+            f"{violation['command']} "
+            f"{nickname} "
+            f"{violation['minutes']} "
+            f"{violation['reason']} "
+            f"/ {rules['admin_prefix']}"
+        )
+
+    # ───────── Оффлайн выдача
         self.tracker.post_message(
             OFFLINE_PUNISH_URL,
-            (
-                f"{command_text}\n\n"
-                f"Ссылка на жалобу:\n{url}"
-            )
+            command
         )
 
-    # 7. Ответ в жалобу
+    # ───────── Смена префикса
+        text = (
+            f"Ссылка: {url}\n"
+            f"Статус: ✅ Одобрено"
+        )
+
         self.tracker.post_message(
-            url,
-            (
-                "✅ Жалоба одобрена.\n"
-                f"Нарушение: {rule['reason']}\n"
-                f"Наказание: {rule['minutes']} минут\n\n"
-                "Наказание выдано оффлайн."
-            )
+            PREFIX_CHANGE_URL,
+            text
         )
 
         return self.vk.send(
             peer_id,
-            "⚡ FAST выполнен успешно:\n"
-            f"{command_text}"
+            "✅ Жалоба обработана автоматически."
         )
+
 
     
 
