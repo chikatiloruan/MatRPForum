@@ -499,9 +499,9 @@ class CommandHandler:
 
 
     def cmd_fast(self, peer_id, parts):
-    """
-    /fast <url_жалобы>
-    """
+        """
+        /fast <url_жалобы>
+        """
 
         if len(parts) < 2:
             return self.vk.send(
