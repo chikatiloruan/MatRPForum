@@ -17,8 +17,8 @@ from .storage import (
 )
 from .deepseek_ai import ask_ai
 from .permissions import is_admin
-from .utils import normalize_url, detect_type, parse_profile
-from .forum_tracker import ForumTracker, parse_forum_topics
+from .utils import normalize_url, detect_type
+from .forum_tracker import ForumTracker, parse_forum_topics, parse_thread_posts
 from config import FORUM_BASE
 
 # путь к БД (для stats)
@@ -42,6 +42,11 @@ REACTIONS = {
 }
 
 #-------------УТИЛИТЫ /FAST---------
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+
+FAST_DATA_DIR = os.path.join(BASE_DIR, "data")
+
+
 FAST_RULES_FILE = os.path.join(
     os.path.dirname(os.path.dirname(__file__)),
     "data",
@@ -60,7 +65,9 @@ PREFIX_CHANGE_URL = (
 
 
 def load_fast_rules():
-    with open(FAST_RULES_FILE, "r", encoding="utf-8") as f:
+    path = os.path.join(FAST_DATA_DIR, "fast_rules.json")
+
+    with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
