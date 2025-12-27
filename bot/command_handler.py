@@ -282,6 +282,10 @@ class CommandHandler:
             if cmd == "/fast":
                 return self.cmd_fast(peer_id, parts)
 
+            if cmd == "testproxy":
+                return self.cmd_testproxy(peer_id, parts)
+
+
 
             if cmd == "/reaction":
                 return self.cmd_reaction(peer_id, parts)
@@ -458,6 +462,40 @@ class CommandHandler:
             self.vk.send(peer_id, "📌 Отслеживаемые:\n" + "\n".join(lines))
         except Exception as e:
             self.vk.send(peer_id, f"Ошибка list: {e}")
+
+
+    def cmd_testproxy(self, peer_id, parts):
+        """
+        /testproxy <proxy>
+        """
+        if len(parts) < 2:
+            return self.vk.send(
+                peer_id,
+                "Использование:\n/testproxy ip:port\n/testproxy user:pass@ip:port"
+            )
+
+        proxy = parts[1].strip()
+
+        self.vk.send(peer_id, f"⏳ Проверяю прокси `{proxy}`...")
+
+        res = test_forum_proxy(proxy)
+
+        if res["ok"]:
+            return self.vk.send(
+                peer_id,
+                f"✅ ПРОКСИ ГОДЕН\n"
+                f"🌐 {proxy}\n"
+                f"🟢 {res['reason']}"
+            )
+        else:
+            return self.vk.send(
+                peer_id,
+                f"❌ ПРОКСИ НЕ ПОДХОДИТ\n"
+                f"🌐 {proxy}\n"
+                f"🔴 {res['reason']}"
+            )
+
+    
 
     def cmd_check(self, peer_id):
         try:
