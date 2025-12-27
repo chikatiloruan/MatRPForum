@@ -478,7 +478,7 @@ class CommandHandler:
 
         self.vk.send(peer_id, f"⏳ Проверяю прокси `{proxy}`...")
 
-        res = test_forum_proxy(proxy)
+        res = self.tracker.test_forum_proxy(proxy)
 
         if res["ok"]:
             return self.vk.send(
