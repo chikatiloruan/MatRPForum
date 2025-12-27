@@ -17,6 +17,13 @@ from .storage import list_all_tracks, update_last
 import traceback
 import datetime
 
+UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/143.0.0.0 Safari/537.36"
+)
+
+
 
 try:
     from config import XF_USER, XF_SESSION, XF_TFA_TRUST, FORUM_BASE, POLL_INTERVAL_SEC, XF_CSRF
@@ -273,6 +280,59 @@ def parse_forum_topics(html: str, base_url: str) -> List[Dict]:
 
 
 class ForumTracker:
+
+    def test_forum_proxy(proxy: str, timeout=15) -> dict:
+        """
+        proxy format: ip:port OR user:pass@ip:port
+        """
+
+        proxies = {
+            "http": f"http://{proxy}",
+            "https": f"http://{proxy}",
+        }
+
+        headers = {
+             "User-Agent": UA,
+             "Accept-Language": "ru-RU,ru;q=0.9",
+        }
+
+        try:
+            r = requests.get(
+                FORUM_BASE,
+                headers=headers,
+                proxies=proxies,
+                timeout=timeout,
+            ) 
+
+            if r.status_code != 200:
+                return {
+                    "ok": False,
+                    "reason": f"HTTP {r.status_code}",
+            }
+
+            soup = BeautifulSoup(r.text, "html.parser")
+
+        # Проверка, что это реально XenForo форум
+            if not (
+                soup.find("html", {"data-template": True})
+                or "XenForo" in r.text
+            ):
+                return {
+                    "ok": False,
+                    "reason": "Не форум / антибот",
+                }
+
+            return {
+                "ok": True,
+                "reason": "Прокси подходит для форума",
+            }
+
+        except requests.exceptions.ProxyError:
+            return {"ok": False, "reason": "ProxyError"}
+        except requests.exceptions.ConnectTimeout:
+            return {"ok": False, "reason": "Timeout"}
+        except Exception as e:
+            return {"ok": False, "reason": str(e)}
    
 
     def __init__(self, *args):
